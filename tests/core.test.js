@@ -115,13 +115,17 @@ test('loadLocalDb provides resilient in-memory store structure', () => {
   assert.ok(typeof db.customerCards === 'object', 'customerCards map must exist');
 });
 
-test('resolveShopBySlug resolves registered shops from Supabase', async () => {
-  const { resolveShopBySlug } = require('../server');
-  const shop = await resolveShopBySlug('royak-ca');
-  assert.ok(shop, 'Registered shop royak-ca should be found');
-  assert.equal(shop.slug, 'royak-ca');
-  assert.equal(shop.name, 'royak ca');
+test('resolveShopBySlug resolves shops strictly and returns null for unknown slugs', async () => {
+  const { resolveShopBySlug, loadLocalDb } = require('../server');
+  const db = loadLocalDb();
+  db.shops['fixture-shop'] = { name: 'Fixture Shop', slug: 'fixture-shop' };
+
+  const found = await resolveShopBySlug('fixture-shop');
+  assert.ok(found, 'Fixture shop should be found');
+  assert.equal(found.slug, 'fixture-shop');
 
   const unknown = await resolveShopBySlug('non-existent-shop-slug-999');
   assert.equal(unknown, null, 'Unknown shop slug must strictly return null');
+
+  delete db.shops['fixture-shop'];
 });
