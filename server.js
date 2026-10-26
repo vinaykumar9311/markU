@@ -933,7 +933,8 @@ app.get('/api/owner/subscription', async (req, res) => {
         monthly: { price: 149, days: 30, label: 'Pro Monthly (₹149/mo)', link: process.env.PAYMENT_LINK_MONTHLY || 'https://rzp.io/l/marku-monthly' },
         yearly: { price: 999, days: 365, label: 'Growth Annual (₹999/yr)', link: process.env.PAYMENT_LINK_YEARLY || 'https://rzp.io/l/marku-yearly' }
       },
-      supportWhatsApp: process.env.SUPPORT_WHATSAPP_NUMBER || '919311594509'
+      supportWhatsApp: process.env.SUPPORT_WHATSAPP_NUMBER || '919311594509',
+      upiId: process.env.UPI_ID || '9311594509@ybl'
     }
   });
 });

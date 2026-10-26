@@ -373,36 +373,42 @@
       </div>
 
       <div class="space-y-4 text-xs text-gray-300">
-        <p class="leading-relaxed">Complete your payment securely via official Razorpay link or UPI transfer:</p>
+        <p class="leading-relaxed">Scan the UPI QR code below with any app (GPay, PhonePe, Paytm) or pay directly to UPI ID:</p>
 
-        <!-- Direct Payment Link Button -->
-        <a id="paymentLinkBtn" href="https://rzp.io/l/marku-monthly" target="_blank"
-          class="w-full btn-gold font-bold py-3 px-4 rounded-xl text-center block shadow-md">
-          Pay via Razorpay / UPI / Card &rarr;
+        <!-- Dynamic UPI QR Code Display -->
+        <div class="flex flex-col items-center justify-center p-3 bg-white rounded-2xl border border-amber-500/30">
+          <img id="upiQrImage" src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=9311594509@ybl%26pn=MarkU%20Loyalty%26am=149%26cu=INR" alt="UPI QR Code" class="w-36 h-36 rounded-lg">
+          <span class="text-[10px] font-bold text-gray-600 mt-1.5">Scan with GPay / PhonePe / Paytm</span>
+        </div>
+
+        <!-- 1-Tap UPI App Button (Mobile Intent) -->
+        <a id="upiIntentBtn" href="upi://pay?pa=9311594509@ybl&pn=MarkU%20Loyalty&am=149&cu=INR"
+          class="w-full bg-[#5f259f] hover:bg-[#4b1d7d] text-white font-bold py-3 px-4 rounded-xl text-center block shadow-md transition-all">
+          Open in UPI App (GPay / PhonePe) &rarr;
         </a>
 
-        <!-- UPI Direct Option -->
-        <div class="bg-[#1a1a20] border border-gray-800 rounded-xl p-3.5 space-y-1.5">
+        <!-- UPI ID Box with Copy Button -->
+        <div class="bg-[#1a1a20] border border-gray-800 rounded-xl p-3.5 space-y-1">
           <div class="flex justify-between items-center text-gray-400 font-mono text-[11px]">
-            <span>UPI ID:</span>
+            <span>Official UPI ID:</span>
             <button type="button" onclick="copyUpiId()" class="text-amber-400 font-bold hover:underline">Copy UPI</button>
           </div>
-          <div id="upiIdValue" class="text-sm font-bold text-white font-mono">marku@upi</div>
-          <p class="text-[10px] text-gray-500">Scan or send from any app: GPay, PhonePe, Paytm, BHIM.</p>
+          <div id="upiIdValue" class="text-sm font-bold text-white font-mono">9311594509@ybl</div>
+          <p class="text-[10px] text-gray-500">Beneficiary: MarkU · Registered Mobile: +91 9311594509</p>
         </div>
 
         <!-- Reference / UTR Input -->
         <div class="space-y-1.5">
           <label for="paymentRefInput" class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider">
-            Payment Reference / Transaction ID (Optional)
+            Payment Reference / UTR / Transaction ID (Optional)
           </label>
-          <input type="text" id="paymentRefInput" placeholder="e.g. 423589123456 or RZP_12345"
+          <input type="text" id="paymentRefInput" placeholder="e.g. 423589123456 or PhonePe Transaction ID"
             class="w-full bg-[#1a1a20] border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
         </div>
 
         <div class="flex items-center gap-2 pt-2">
           <button type="button" onclick="confirmPaymentAndLaunch()" id="confirmPayBtn"
-            class="flex-1 bg-white hover:bg-gray-100 text-gray-900 font-bold py-2.5 rounded-xl text-xs transition-all">
+            class="flex-1 btn-gold text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow">
             Confirm & Activate Cockpit &rarr;
           </button>
           <button type="button" onclick="activatePlan('trial')" class="px-3 py-2.5 text-xs text-gray-400 hover:text-white">
@@ -412,9 +418,9 @@
 
         <!-- WhatsApp Help -->
         <div class="text-center pt-1 border-t border-gray-800/80">
-          <a id="waPayLink" href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20have%20completed%20the%20payment%20for%20my%20subscription" target="_blank"
+          <a id="waPayLink" href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20have%20paid%20Rs%20149%20via%20UPI%20(9311594509@ybl)%20for%20my%20MarkU%20subscription.%20Here%20is%20my%20payment%20screenshot:" target="_blank"
             class="text-[11px] text-emerald-400 font-semibold hover:underline flex items-center justify-center gap-1">
-            <span>💬 Send payment screenshot on WhatsApp</span>
+            <span>💬 Send payment screenshot on WhatsApp (+91 9311594509)</span>
           </a>
         </div>
 
@@ -609,16 +615,21 @@
       selectedPlan = plan;
       const titleEl = document.getElementById('paymentModalTitle');
       const amountEl = document.getElementById('paymentModalAmount');
-      const linkBtn = document.getElementById('paymentLinkBtn');
+      const qrEl = document.getElementById('upiQrImage');
+      const upiBtn = document.getElementById('upiIntentBtn');
+      const waBtn = document.getElementById('waPayLink');
+      const upiId = '9311594509@ybl';
+      const amount = plan === 'monthly' ? 149 : 999;
+      const planName = plan === 'monthly' ? 'Pro Monthly' : 'Growth Annual';
 
-      if (plan === 'monthly') {
-        titleEl.textContent = 'Upgrade to Pro Monthly';
-        amountEl.textContent = '₹149 / month';
-        linkBtn.href = 'https://rzp.io/l/marku-monthly';
-      } else {
-        titleEl.textContent = 'Upgrade to Growth Annual';
-        amountEl.textContent = '₹999 / year (Save 44%)';
-        linkBtn.href = 'https://rzp.io/l/marku-yearly';
+      titleEl.textContent = `Upgrade to ${planName}`;
+      amountEl.textContent = `₹${amount} ${plan === 'monthly' ? '/ month' : '/ year'}`;
+
+      const upiUri = `upi://pay?pa=${upiId}&pn=MarkU%20Loyalty&am=${amount}&cu=INR&tn=MarkU%20${encodeURIComponent(planName)}`;
+      if (qrEl) qrEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUri)}`;
+      if (upiBtn) upiBtn.href = upiUri;
+      if (waBtn) {
+        waBtn.href = `https://api.whatsapp.com/send?phone=919311594509&text=${encodeURIComponent(`Hi MarkU, I have paid ₹${amount} via UPI (${upiId}) for my ${planName} subscription. Here is my payment screenshot:`)}`;
       }
 
       document.getElementById('paymentModal').classList.remove('hidden');
@@ -647,8 +658,8 @@
     }
 
     function copyUpiId() {
-      navigator.clipboard.writeText('marku@upi');
-      alert('UPI ID copied: marku@upi');
+      navigator.clipboard.writeText('9311594509@ybl');
+      alert('UPI ID copied: 9311594509@ybl');
     }
 
     function showError(msg) {
