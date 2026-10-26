@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: singapore # Closest low-latency region for Indian and Asian merchants
-    buildCommand: npm install --production
+    buildCommand: npm install --production --loglevel=error
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
