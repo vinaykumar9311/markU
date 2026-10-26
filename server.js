@@ -1406,45 +1406,29 @@ app.post('/api/customer/send-otp', (req, res) => {
 });
 
 app.post('/api/customer/verify-otp', async (req, res) => {
-  const { phone, otp, firebaseIdToken } = req.body;
+  const { firebaseIdToken } = req.body;
 
-  if (firebaseIdToken && firebaseInitialized) {
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
-    if (authResult.success && authResult.phone) {
-      const normPhone = normalizePhoneNumber(authResult.phone);
-      const vToken = signCustomerOtpToken(normPhone);
-      return res.json({
-        success: true,
-        message: 'Phone number verified via Firebase SMS OTP.',
-        verifiedPhone: normPhone,
-        verificationToken: vToken
-      });
-    }
+  if (!firebaseInitialized) {
+    return res.status(503).json({ success: false, message: 'SMS verification service is temporarily unavailable.' });
   }
 
-  if (!phone || !otp) {
-    return res.status(400).json({ success: false, message: 'Mobile number and 6-digit OTP code required.' });
+  if (!firebaseIdToken) {
+    return res.status(400).json({ success: false, message: 'Firebase SMS verification token is required.' });
   }
 
-  const cleanPhone = normalizePhoneNumber(phone);
-  const cleanOtp = String(otp).trim();
-  const stored = customerOtpStore.get(cleanPhone);
-
-  const isDemoAccepted = false; // fixed demo OTP removed
-  const isCodeMatch = stored && stored.code === cleanOtp && Date.now() <= stored.expiresAt;
-
-  if (isDemoAccepted || isCodeMatch) {
-    customerOtpStore.delete(cleanPhone);
-    const vToken = signCustomerOtpToken(cleanPhone);
-    return res.json({
-      success: true,
-      message: 'Mobile number verified successfully!',
-      verifiedPhone: cleanPhone,
-      verificationToken: vToken
-    });
+  const authResult = await verifyFirebaseToken(firebaseIdToken);
+  if (!authResult.success || !authResult.phone) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired phone verification: ' + (authResult.reason || 'Verification failed') });
   }
 
-  return res.status(400).json({ success: false, message: 'Invalid or expired OTP code. Please try again.' });
+  const normPhone = normalizePhoneNumber(authResult.phone);
+  const vToken = signCustomerOtpToken(normPhone);
+  return res.json({
+    success: true,
+    message: 'Phone number verified via Firebase SMS OTP.',
+    verifiedPhone: normPhone,
+    verificationToken: vToken
+  });
 });
 
 // --------------------------------------------------------------------
@@ -1459,7 +1443,7 @@ app.post('/api/claim-stamp', async (req, res) => {
     return res.status(404).json({ success: false, message: 'Shop not found.' });
   }
 
-  // 2. Validate Customer Identity (Firebase token, verified session token, or phone + OTP code directly)
+  // 2. Validate Customer Identity (Firebase token or signed session token)
   let verifiedPhone = null;
 
   if (firebaseIdToken && firebaseInitialized) {
@@ -1471,30 +1455,6 @@ app.post('/api/claim-stamp', async (req, res) => {
     if (tokenPayload) {
       verifiedPhone = normalizePhoneNumber(tokenPayload.phone);
     }
-  }
-
-  // Direct OTP verification fallback if token not provided or expired
-  if (!verifiedPhone && phone && otp) {
-    const cleanPhone = normalizePhoneNumber(phone);
-    const cleanOtp = String(otp).trim();
-    const stored = customerOtpStore.get(cleanPhone);
-    const isDemoAccepted = false; // fixed demo OTP removed
-    const isCodeMatch = stored && stored.code === cleanOtp && Date.now() <= stored.expiresAt;
-
-    if (isDemoAccepted || isCodeMatch) {
-      customerOtpStore.delete(cleanPhone);
-      verifiedPhone = cleanPhone;
-    } else {
-      return res.status(400).json({ success: false, message: 'Invalid or expired 6-digit OTP code. Please try again.' });
-    }
-  }
-
-  if (!verifiedPhone && phone && !otp) {
-    return res.status(401).json({
-      success: false,
-      code: 'OTP_REQUIRED',
-      message: 'Please enter the 6-digit OTP verification code.'
-    });
   }
 
   if (!verifiedPhone) {
