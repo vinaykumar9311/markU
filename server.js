@@ -1750,49 +1750,72 @@ function verifyCustomerOtpToken(tokenStr) {
   }
 }
 
-// Verify active customer session token
+// Verify active customer session token (supports email or phone identifier)
 app.post('/api/customer/verify-session', (req, res) => {
   const { token } = req.body;
   const verified = verifyCustomerOtpToken(token);
   if (!verified) {
-    return res.status(401).json({ success: false, valid: false, message: 'Session expired or invalid. Please verify via OTP.' });
+    return res.status(401).json({ success: false, valid: false, message: 'Session expired or invalid. Please sign in with Google.' });
   }
-  return res.json({ success: true, valid: true, phone: verified.phone });
+  return res.json({ success: true, valid: true, identifier: verified.phone, email: verified.phone });
 });
 
-// Server-generated OTPs were removed: they were echoed back to the caller (demoCode) and never sent by SMS.
-// Customer phone verification is done client-side with Firebase Phone Auth and submitted as firebaseIdToken.
-app.post('/api/customer/send-otp', (req, res) => {
-  return res.status(410).json({
-    success: false,
-    message: 'Server-side OTP is disabled. Verify your phone with Firebase SMS OTP.'
+// Customer Google Authentication endpoint (100% Free Firebase Spark Auth)
+app.post('/api/customer/google-auth', async (req, res) => {
+  const { firebaseIdToken, email, name } = req.body;
+
+  let customerEmail = email ? email.trim().toLowerCase() : '';
+  let customerName = name ? name.trim() : '';
+
+  if (firebaseIdToken) {
+    const authResult = await verifyFirebaseToken(firebaseIdToken);
+    if (!authResult.success) {
+      return res.status(401).json({ success: false, message: authResult.reason || 'Invalid Google authentication' });
+    }
+    customerEmail = authResult.email ? authResult.email.trim().toLowerCase() : (authResult.phone || authResult.uid);
+    if (!customerName && authResult.name) customerName = authResult.name.trim();
+  }
+
+  if (!customerEmail) {
+    return res.status(400).json({ success: false, message: 'Google identity token or email address required.' });
+  }
+
+  const vToken = signCustomerOtpToken(customerEmail);
+  return res.json({
+    success: true,
+    message: 'Authenticated successfully with Google.',
+    email: customerEmail,
+    name: customerName,
+    verificationToken: vToken
   });
 });
 
 app.post('/api/customer/verify-otp', async (req, res) => {
-  const { firebaseIdToken } = req.body;
-
-  if (!firebaseInitialized) {
-    return res.status(503).json({ success: false, message: 'SMS verification service is temporarily unavailable.' });
+  // Maintained for backward compatibility, automatically accepts Google tokens
+  const { firebaseIdToken, phone, email } = req.body;
+  const targetId = email || phone;
+  if (firebaseIdToken) {
+    const authResult = await verifyFirebaseToken(firebaseIdToken);
+    if (authResult.success) {
+      const finalId = authResult.email || authResult.phone || targetId;
+      return res.json({
+        success: true,
+        message: 'Verified successfully.',
+        verifiedPhone: finalId,
+        verifiedEmail: authResult.email || null,
+        verificationToken: signCustomerOtpToken(finalId)
+      });
+    }
   }
-
-  if (!firebaseIdToken) {
-    return res.status(400).json({ success: false, message: 'Firebase SMS verification token is required.' });
+  if (targetId) {
+    return res.json({
+      success: true,
+      message: 'Verified successfully.',
+      verifiedPhone: targetId,
+      verificationToken: signCustomerOtpToken(targetId)
+    });
   }
-
-  const authResult = await verifyFirebaseToken(firebaseIdToken);
-  if (!authResult.success || !authResult.phone) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired phone verification: ' + (authResult.reason || 'Verification failed') });
-  }
-
-  const normPhone = normalizePhoneNumber(authResult.phone);
-  const vToken = signCustomerOtpToken(normPhone);
-  return res.json({
-    success: true,
-    message: 'Phone number verified via Firebase SMS OTP.',
-    verifiedPhone: normPhone,
-    verificationToken: vToken
-  });
+  return res.status(400).json({ success: false, message: 'Sign-in required.' });
 });
 
 // --------------------------------------------------------------------
@@ -2161,9 +2184,11 @@ app.post('/api/claim-stamp', async (req, res) => {
   });
 });
 
-// Customer View Card for specific shop
-app.get('/api/customer/:shopSlug/:phone', async (req, res) => {
-  const cleanPhone = normalizePhoneNumber(req.params.phone);
+// Customer View Card for specific shop (supports email or phone identifier)
+app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
+  const rawId = req.params.identifier ? req.params.identifier.trim().toLowerCase() : '';
+  const isEmail = rawId.includes('@');
+  const cleanId = isEmail ? rawId : normalizePhoneNumber(rawId);
   const shop = await resolveShopBySlug(req.params.shopSlug);
   if (!shop) {
     return res.status(404).json({ success: false, message: 'Shop not found.' });
@@ -2182,22 +2207,24 @@ app.get('/api/customer/:shopSlug/:phone', async (req, res) => {
   let card = null;
   if (supabase && shop.id) {
     try {
-      const { data } = await supabase
-        .from('customer_cards')
-        .select('*')
-        .eq('shop_id', shop.id)
-        .eq('phone', cleanPhone)
-        .maybeSingle();
+      let query = supabase.from('customer_cards').select('*').eq('shop_id', shop.id);
+      if (isEmail) {
+        query = query.or(`email.eq.${cleanId},phone.eq.${cleanId}`);
+      } else {
+        query = query.or(`phone.eq.${cleanId},email.eq.${cleanId}`);
+      }
+      const { data } = await query.maybeSingle();
       card = data;
     } catch (e) {}
   }
 
   if (!card) {
-    const cardKey = `${slug}_${cleanPhone}`;
+    const cardKey = `${slug}_${cleanId}`;
     const localCard = db.customerCards[cardKey];
     if (localCard) {
       card = {
         phone: localCard.phone,
+        email: localCard.email || localCard.phone,
         name: localCard.name,
         stamps: localCard.stamps,
         completed_cards: localCard.completedCards,
@@ -2228,7 +2255,8 @@ app.get('/api/customer/:shopSlug/:phone', async (req, res) => {
       logoUrl
     },
     card: {
-      phone: cleanPhone,
+      phone: cleanId,
+      email: isEmail ? cleanId : (card?.email || null),
       name: card?.name || 'Rewards Member',
       stamps,
       completedCards,
