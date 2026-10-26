@@ -105,3 +105,23 @@ test('Service Worker sw.js is present and defines offline caching and network fe
   assert.ok(swContent.includes('fetch'), 'sw.js must have fetch event listener');
   assert.ok(swContent.includes('CACHE_NAME'), 'sw.js must define cache name');
 });
+
+test('loadLocalDb provides resilient in-memory store structure', () => {
+  const { loadLocalDb } = require('../server');
+  const db = loadLocalDb();
+  assert.ok(db, 'db object must exist');
+  assert.ok(typeof db.shops === 'object', 'shops map must exist');
+  assert.ok(typeof db.owners === 'object', 'owners map must exist');
+  assert.ok(typeof db.customerCards === 'object', 'customerCards map must exist');
+});
+
+test('resolveShopBySlug resolves registered shops from Supabase', async () => {
+  const { resolveShopBySlug } = require('../server');
+  const shop = await resolveShopBySlug('royak-ca');
+  assert.ok(shop, 'Registered shop royak-ca should be found');
+  assert.equal(shop.slug, 'royak-ca');
+  assert.equal(shop.name, 'royak ca');
+
+  const unknown = await resolveShopBySlug('non-existent-shop-slug-999');
+  assert.equal(unknown, null, 'Unknown shop slug must strictly return null');
+});

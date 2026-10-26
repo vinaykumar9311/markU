@@ -68,32 +68,50 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.log('[Supabase] Notice: Credentials not found in .env. Running in local multi-tenant test mode.');
 }
 
-// Local persistent store fallback
+// Local persistent store fallback (with safe in-memory cache)
 const LOCAL_DB_FILE = path.join(__dirname, 'database.json');
+let memoryDb = null;
+
 function loadLocalDb() {
-  if (!fs.existsSync(LOCAL_DB_FILE)) {
-    const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
-    fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(init, null, 2));
-    return init;
-  }
+  if (memoryDb) return memoryDb;
   try {
+    if (!fs.existsSync(LOCAL_DB_FILE)) {
+      const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
+      try {
+        fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(init, null, 2));
+      } catch (writeErr) {
+        // Ephemeral or permission-restricted environment (Render/Docker)
+      }
+      memoryDb = init;
+      return memoryDb;
+    }
     const data = JSON.parse(fs.readFileSync(LOCAL_DB_FILE, 'utf8'));
     if (!data.shops) data.shops = {};
     if (!data.owners) data.owners = {};
     if (!data.customerCards) data.customerCards = {};
     if (!data.usedTokens) data.usedTokens = {};
     if (!data.history) data.history = [];
-    return data;
-  } catch {
-    return { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
+    memoryDb = data;
+    return memoryDb;
+  } catch (err) {
+    if (!memoryDb) {
+      memoryDb = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
+    }
+    return memoryDb;
   }
 }
+
 function saveLocalDb(data) {
-  fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(data, null, 2));
+  memoryDb = data;
+  try {
+    fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    // In-memory state remains intact even if container disk is read-only
+  }
 }
 
 // --------------------------------------------------------------------
-// 2. FIREBASE ADMIN AUTH (CUSTOMER SMS OTP)
+// 2. FIREBASE AUTHENTICATION (CUSTOMER SMS OTP)
 // --------------------------------------------------------------------
 let firebaseInitialized = false;
 let firebaseAuth = null;
@@ -124,14 +142,100 @@ try {
   console.error('[Firebase] Init error:', err.message);
 }
 
-async function verifyFirebaseToken(idToken) {
-  if (!firebaseInitialized || !firebaseAuth) return { success: false, reason: 'Firebase Admin not configured' };
-  try {
-    const decoded = await firebaseAuth.verifyIdToken(idToken);
-    return { success: true, uid: decoded.uid, phone: decoded.phone_number || null };
-  } catch (err) {
-    return { success: false, reason: err.message };
+// Google Public X.509 Certificates Cache for Firebase ID Token Verification Fallback
+let googlePublicCertsCache = null;
+let googlePublicCertsExpiresAt = 0;
+
+async function getGooglePublicCerts() {
+  const now = Date.now();
+  if (googlePublicCertsCache && now < googlePublicCertsExpiresAt) {
+    return googlePublicCertsCache;
   }
+  try {
+    const res = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const cacheControl = res.headers.get('cache-control') || '';
+    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+    const ttlSeconds = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 3600;
+    googlePublicCertsCache = await res.json();
+    googlePublicCertsExpiresAt = now + (ttlSeconds * 1000);
+    return googlePublicCertsCache;
+  } catch (err) {
+    console.error('[Firebase] Failed to fetch Google public certs:', err.message);
+    return googlePublicCertsCache;
+  }
+}
+
+async function verifyFirebaseTokenWithPublicKeys(idToken) {
+  if (!idToken || typeof idToken !== 'string') return { success: false, reason: 'Missing or invalid token string' };
+  const parts = idToken.split('.');
+  if (parts.length !== 3) return { success: false, reason: 'Malformed JWT structure' };
+
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    if (header.alg !== 'RS256' || !header.kid) {
+      return { success: false, reason: 'Invalid token header algorithm or missing key ID' };
+    }
+
+    let certs = await getGooglePublicCerts();
+    if (!certs || !certs[header.kid]) {
+      googlePublicCertsExpiresAt = 0;
+      certs = await getGooglePublicCerts();
+    }
+
+    if (!certs || !certs[header.kid]) {
+      return { success: false, reason: 'Public certificate not found for token key ID' };
+    }
+
+    const cert = certs[header.kid];
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(`${parts[0]}.${parts[1]}`);
+    const isValid = verifier.verify(crypto.createPublicKey(cert), Buffer.from(parts[2], 'base64url'));
+    if (!isValid) {
+      return { success: false, reason: 'Invalid token cryptographic signature' };
+    }
+
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    if (payload.exp && payload.exp < nowSec) {
+      return { success: false, reason: 'Firebase token has expired' };
+    }
+    if (payload.auth_time && payload.auth_time > nowSec + 300) {
+      return { success: false, reason: 'Firebase token auth_time is in the future' };
+    }
+
+    const expectedProjectId = process.env.PUBLIC_FIREBASE_PROJECT_ID || 'marku-f73a1';
+    if (payload.aud !== expectedProjectId) {
+      return { success: false, reason: `Token audience (${payload.aud}) does not match project (${expectedProjectId})` };
+    }
+    if (payload.iss !== `https://securetoken.google.com/${expectedProjectId}`) {
+      return { success: false, reason: `Token issuer (${payload.iss}) does not match expected project issuer` };
+    }
+    if (!payload.sub || typeof payload.sub !== 'string') {
+      return { success: false, reason: 'Token contains invalid subject (UID)' };
+    }
+
+    return {
+      success: true,
+      uid: payload.sub,
+      phone: payload.phone_number || null
+    };
+  } catch (err) {
+    return { success: false, reason: `Token verification error: ${err.message}` };
+  }
+}
+
+async function verifyFirebaseToken(idToken) {
+  if (firebaseInitialized && firebaseAuth) {
+    try {
+      const decoded = await firebaseAuth.verifyIdToken(idToken);
+      return { success: true, uid: decoded.uid, phone: decoded.phone_number || null };
+    } catch (err) {
+      console.warn('[Firebase] Admin SDK verification failed, attempting public key verification:', err.message);
+    }
+  }
+  return await verifyFirebaseTokenWithPublicKeys(idToken);
 }
 
 
@@ -155,7 +259,13 @@ app.get('/health', (req, res) => {
 
 app.get('/ready', (req, res) => {
   const isDbReady = !!supabase;
-  return res.status(200).json({ ready: true, supabaseConnected: isDbReady, firebaseConnected: firebaseInitialized });
+  const isFirebaseReady = firebaseInitialized || !!(process.env.PUBLIC_FIREBASE_PROJECT_ID || process.env.PUBLIC_FIREBASE_API_KEY);
+  return res.status(200).json({
+    ready: true,
+    supabaseConnected: isDbReady,
+    firebaseConnected: isFirebaseReady,
+    firebaseAuthMode: firebaseInitialized ? 'admin-sdk' : 'public-jwt-verification'
+  });
 });
 
 // Endpoint providing Firebase Client Config to frontend (scan.html)
@@ -201,18 +311,25 @@ function normalizePhoneNumber(raw) {
 
 async function resolveShopBySlug(rawSlug) {
   const slug = (rawSlug || 'default').toLowerCase().trim();
-  const db = loadLocalDb();
   let shop = null;
 
   if (supabase) {
     try {
-      const { data } = await supabase.from('shops').select('*').eq('slug', slug).maybeSingle();
+      const { data, error } = await supabase.from('shops').select('*').eq('slug', slug).maybeSingle();
+      if (error) {
+        console.warn('[Supabase] resolveShopBySlug error:', error.message);
+      }
       if (data) shop = data;
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Supabase] resolveShopBySlug exception:', e.message);
+    }
   }
 
-  if (!shop && db.shops[slug]) {
-    shop = db.shops[slug];
+  if (!shop) {
+    const db = loadLocalDb();
+    if (db && db.shops && db.shops[slug]) {
+      shop = db.shops[slug];
+    }
   }
 
   // Strict resolution only: an unknown slug must never resolve to another tenant's shop.
@@ -1076,7 +1193,7 @@ async function handleUpdateSettings(req, res) {
       const finalCooldown = parsedCooldown !== undefined ? parsedCooldown : (shop.cooldown_hours !== undefined ? shop.cooldown_hours : 7);
       const finalReviewUrl = cleanReviewUrl !== undefined ? cleanReviewUrl : (shop.google_review_url || '');
       const finalInstaUrl = cleanInstagramUrl !== undefined ? cleanInstagramUrl : (shop.instagram_url || '');
-      const finalLogoUrl = cleanLogoUrl !== undefined ? cleanLogoUrl : (shop.logo_url || shop.logoUrl || (loadLocalDb().shops[shop.slug] && loadLocalDb().shops[shop.slug].logoUrl) || '');
+      const finalLogoUrl = cleanLogoUrl !== undefined ? cleanLogoUrl : (shop.logo_url || shop.logoUrl || loadLocalDb()?.shops?.[shop.slug]?.logoUrl || '');
 
       const updateData = {
         name: finalName,
@@ -1249,68 +1366,76 @@ app.delete('/api/owner/account', async (req, res) => {
 // --------------------------------------------------------------------
 // Public shop metadata endpoint
 app.get('/api/shop/:slug/info', async (req, res) => {
-  const shop = await resolveShopBySlug(req.params.slug);
-  const db = loadLocalDb();
-  const slug = shop?.slug || req.params.slug;
-  const localShop = db.shops[slug] || {};
-  const googleReviewUrl = shop?.google_review_url || shop?.googleReviewUrl || localShop.googleReviewUrl || '';
-  const instagramUrl = shop?.instagram_url || shop?.instagramUrl || localShop.instagramUrl || '';
-  const logoUrl = shop?.logo_url || shop?.logoUrl || localShop.logoUrl || '';
-
-  if (!shop) {
-    return res.status(404).json({
-      success: false,
-      message: 'Shop not found. Please verify the URL.'
-    });
-  }
-  return res.json({
-    success: true,
-    shop: {
-      name: shop.name,
-      slug: shop.slug,
-      rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
-      stampsTarget: shop.stamps_target || shop.stampsTarget || 10,
-      cooldownHours: shop.cooldown_hours || shop.cooldownHours || 12,
-      googleReviewUrl,
-      instagramUrl,
-      logoUrl
+  try {
+    const shop = await resolveShopBySlug(req.params.slug);
+    if (!shop) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shop not found. Please verify the URL.'
+      });
     }
-  });
+
+    const db = loadLocalDb();
+    const slug = shop.slug || req.params.slug;
+    const localShop = db?.shops?.[slug] || {};
+    const googleReviewUrl = shop.google_review_url || shop.googleReviewUrl || localShop.googleReviewUrl || '';
+    const instagramUrl = shop.instagram_url || shop.instagramUrl || localShop.instagramUrl || '';
+    const logoUrl = shop.logo_url || shop.logoUrl || localShop.logoUrl || '';
+
+    return res.json({
+      success: true,
+      shop: {
+        name: shop.name,
+        slug: shop.slug,
+        rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+        stampsTarget: shop.stamps_target || shop.stampsTarget || 10,
+        cooldownHours: shop.cooldown_hours || shop.cooldownHours || 12,
+        googleReviewUrl,
+        instagramUrl,
+        logoUrl
+      }
+    });
+  } catch (err) {
+    console.error('[ShopInfo] Error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error while resolving shop.' });
+  }
 });
 
 app.get('/api/shop/:slug/live-qr', async (req, res) => {
-  const shop = await resolveShopBySlug(req.params.slug);
-
-  if (!shop) {
-    return res.status(404).json({
-      success: false,
-      message: 'Shop not found. Please launch the kiosk from your Owner Dashboard.'
-    });
-  }
-
-  const slug = shop.slug;
-  const shopSecret = shop.secret_key || shop.secretKey || GLOBAL_SECRET;
-  const qrData = generateShopQrToken(shopSecret);
-  const rawHost = req.get('host') || `localhost:${PORT}`;
-  const publicTunnel = getPublicTunnelUrl();
-
-  let targetHost = rawHost;
-  let scanUrl;
-
-  if (rawHost.includes('trycloudflare.com') || rawHost.includes('loca.lt')) {
-    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https' || rawHost.includes('trycloudflare.com');
-    targetHost = rawHost;
-    scanUrl = `${isHttps ? 'https' : 'http'}://${rawHost}/scan.html?shop=${slug}&token=${qrData.token}`;
-  } else if (publicTunnel) {
-    const cleanPublic = publicTunnel.replace(/\/$/, '');
-    targetHost = cleanPublic.replace(/^https?:\/\//, '');
-    scanUrl = `${cleanPublic}/scan.html?shop=${slug}&token=${qrData.token}`;
-  } else {
-    targetHost = (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) ? `${LAN_IP}:${PORT}` : rawHost;
-    scanUrl = `http://${targetHost}/scan.html?shop=${slug}&token=${qrData.token}`;
-  }
-
   try {
+    const shop = await resolveShopBySlug(req.params.slug);
+
+    if (!shop) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shop not found. Please launch the kiosk from your Owner Dashboard.'
+      });
+    }
+
+    const slug = shop.slug;
+    const shopSecret = shop.secret_key || shop.secretKey || GLOBAL_SECRET;
+    const qrData = generateShopQrToken(shopSecret);
+    const rawHost = req.get('host') || `localhost:${PORT}`;
+    const publicTunnel = getPublicTunnelUrl();
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https' || rawHost.includes('trycloudflare.com') || rawHost.includes('onrender.com');
+    const protocol = isHttps ? 'https' : 'http';
+
+    let targetHost = rawHost;
+    let scanUrl;
+
+    if (rawHost.includes('trycloudflare.com') || rawHost.includes('loca.lt')) {
+      targetHost = rawHost;
+      scanUrl = `${protocol}://${rawHost}/scan.html?shop=${slug}&token=${qrData.token}`;
+    } else if (publicTunnel) {
+      const cleanPublic = publicTunnel.replace(/\/$/, '');
+      targetHost = cleanPublic.replace(/^https?:\/\//, '');
+      scanUrl = `${cleanPublic}/scan.html?shop=${slug}&token=${qrData.token}`;
+    } else {
+      targetHost = (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) ? `${LAN_IP}:${PORT}` : rawHost;
+      scanUrl = `${protocol}://${targetHost}/scan.html?shop=${slug}&token=${qrData.token}`;
+    }
+
+    const db = loadLocalDb();
     const qrSvg = await QRCode.toString(scanUrl, {
       type: 'svg',
       errorCorrectionLevel: 'M',
@@ -1318,7 +1443,7 @@ app.get('/api/shop/:slug/live-qr', async (req, res) => {
       color: { dark: '#171717', light: '#ffffff' }
     });
 
-    res.json({
+    return res.json({
       success: true,
       shop: {
         name: shop.name,
@@ -1327,7 +1452,7 @@ app.get('/api/shop/:slug/live-qr', async (req, res) => {
         stampsTarget: shop.stamps_target || shop.stampsTarget || 10,
         googleReviewUrl: shop.google_review_url || shop.googleReviewUrl || '',
         instagramUrl: shop.instagram_url || shop.instagramUrl || '',
-        logoUrl: shop.logo_url || shop.logoUrl || (loadLocalDb().shops[slug] && loadLocalDb().shops[slug].logoUrl) || ''
+        logoUrl: shop.logo_url || shop.logoUrl || db?.shops?.[slug]?.logoUrl || ''
       },
       scanUrl,
       publicTunnel: publicTunnel || null,
@@ -1339,7 +1464,8 @@ app.get('/api/shop/:slug/live-qr', async (req, res) => {
       qrSvg
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: 'QR Generation failed' });
+    console.error('[LiveQR] Error:', err);
+    return res.status(500).json({ success: false, error: 'QR Generation failed' });
   }
 });
 
@@ -1903,5 +2029,9 @@ module.exports = {
   signCustomerOtpToken,
   verifyCustomerOtpToken,
   hashPassword,
-  verifyPassword
+  verifyPassword,
+  loadLocalDb,
+  saveLocalDb,
+  resolveShopBySlug,
+  verifyFirebaseToken
 };

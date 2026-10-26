@@ -2,8 +2,9 @@ FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production
 WORKDIR /app
+RUN chown -R node:node /app
 
-COPY package.json package-lock.json ./
+COPY --chown=node:node package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --chown=node:node server.js migrate.js schema.sql ./
