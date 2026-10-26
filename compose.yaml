@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: loyalty
+      POSTGRES_USER: loyalty_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD to a random hexadecimal value}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loyalty_app -d loyalty"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    environment: &app-environment
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://loyalty_app:${DB_PASSWORD}@db:5432/loyalty
+      DATABASE_SSL: "false"
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      APP_SECRET: ${APP_SECRET:?Set APP_SECRET to at least 32 random bytes}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set the canonical HTTPS domain}
+      TRUST_PROXY: "true"
+      MSG91_AUTH_KEY: ${MSG91_AUTH_KEY:?Set the MSG91 auth key}
+      MSG91_OTP_TEMPLATE_ID: ${MSG91_OTP_TEMPLATE_ID:?Set the MSG91 OTP template ID}
+      MSG91_COUNTRY_CODE: ${MSG91_COUNTRY_CODE:-91}
+      MSG91_OTP_LENGTH: ${MSG91_OTP_LENGTH:-6}
+      MSG91_OTP_EXPIRY_MINUTES: ${MSG91_OTP_EXPIRY_MINUTES:-5}
+    networks:
+      - frontend
+      - backend
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  migrate:
+    build: .
+    command: ["node", "migrate.js"]
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *app-environment
+    networks:
+      - backend
+
+volumes:
+  postgres-data:
+
+networks:
+  frontend:
+  backend:
+    internal: true

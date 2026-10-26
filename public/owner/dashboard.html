@@ -1,0 +1,1807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MarkU · Owner Cockpit & Loyalty Analytics</title>
+  
+  <!-- Progressive Web App (PWA) Manifest & Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d0d0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MarkU">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <!-- Typography: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { 
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .gold-active-nav {
+      background: linear-gradient(135deg, #d99b3b 0%, #c4882c 100%);
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(217, 155, 59, 0.35);
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #e5a83b 0%, #cb8926 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(203, 137, 38, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #edb449 0%, #d9932d 100%);
+      transform: translateY(-1px);
+    }
+
+    .sidebar-wave {
+      background: radial-gradient(circle at 10% 90%, rgba(217, 155, 59, 0.35) 0%, rgba(13, 13, 14, 0) 70%);
+    }
+
+    .card-shadow {
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
+  </style>
+</head>
+<body class="bg-[#f8f9fa] text-gray-900 min-h-screen flex antialiased selection:bg-amber-500 selection:text-white">
+
+  <!-- ======================================================== -->
+  <!-- LEFT SIDEBAR: DARK WITH WARM GOLD ACCENTS (FROM MOCKUP) -->
+  <!-- ======================================================== -->
+  <aside class="w-64 bg-[#0e0e10] text-gray-300 min-h-screen flex flex-col justify-between p-5 border-r border-[#1a1a1d] shrink-0 sticky top-0 h-screen overflow-y-auto hidden md:flex relative sidebar-wave">
+    
+    <div class="space-y-8 relative z-10">
+      
+      <!-- Logo: MarkU with curved orange smile -->
+      <a href="/" class="flex items-center gap-1 px-2 pt-1" title="MarkU Home">
+        <span class="text-2xl font-black tracking-tight text-white">Mark</span>
+        <span class="text-2xl font-black tracking-tight text-[#d99b3b] relative">
+          U
+          <svg class="w-3.5 h-2 absolute -top-1 right-0 text-[#d99b3b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M1 2C4 7 10 7 13 2" />
+          </svg>
+        </span>
+      </a>
+
+      <!-- Navigation Links (Matching Mockup Icons & Labels) -->
+      <nav class="space-y-1.5 text-xs font-semibold">
+        
+        <!-- Dashboard (Active) -->
+        <button type="button" onclick="openViewFromMenu('dashboard')" id="sideNavDashboard"
+          class="w-full gold-active-nav px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+          <span class="font-bold">Dashboard</span>
+        </button>
+
+        <!-- Customers -->
+        <button type="button" onclick="openViewFromMenu('customers')" id="sideNavCustomers"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <span>Customers</span>
+        </button>
+
+        <!-- Stamp Cards (Reward Settings) -->
+        <button type="button" onclick="openViewFromMenu('reward')" id="sideNavReward"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          <span>Stamp Cards</span>
+        </button>
+
+        <!-- Campaigns (Anti-Cheat Cooldown) -->
+        <button type="button" onclick="openViewFromMenu('cooldown')" id="sideNavCooldown"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          <span>Campaigns</span>
+        </button>
+
+        <!-- Reviews (Dedicated View) -->
+        <button type="button" onclick="openViewFromMenu('reviews')" id="sideNavReviews"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+          <span>Reviews</span>
+        </button>
+
+        <!-- Settings (Quick Actions & Account) -->
+        <button type="button" onclick="openViewFromMenu('settings')" id="sideNavSettings"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Settings</span>
+        </button>
+
+      </nav>
+
+    </div>
+
+    <!-- Bottom Shop Card in Sidebar (Matching Mockup Sunrise Café Card) -->
+    <div class="relative z-10 pt-4 border-t border-white/5 space-y-3">
+      
+      <!-- Outlet Selector -->
+      <div class="flex items-center gap-1.5 bg-[#141417] border border-white/10 rounded-xl p-2.5">
+        <span id="sidebarShopAvatar" class="w-8 h-8 rounded-lg bg-black border border-amber-500/40 text-amber-500 flex items-center justify-center text-xs shrink-0 overflow-hidden font-bold">
+          ☕
+        </span>
+        <div class="min-w-0 flex-1">
+          <div id="headerShopName" class="font-bold text-xs text-white truncate">Sunrise Café</div>
+          <div id="headerSlug" class="text-[10px] text-gray-500 font-mono truncate">/shop/...</div>
+        </div>
+        
+        <select id="shopSwitcherSelect" onchange="onShopSwitcherChange(this.value)"
+          class="bg-transparent text-gray-400 text-[10px] font-semibold focus:outline-none cursor-pointer max-w-[45px] truncate">
+          <option value="">Switch</option>
+        </select>
+        <button type="button" onclick="openCreateShopModal()" class="text-amber-500 text-xs font-bold px-1 hover:text-white" title="Add Outlet">+</button>
+      </div>
+
+    </div>
+
+  </aside>
+
+  <!-- ======================================================== -->
+  <!-- MAIN WORKSPACE                                           -->
+  <!-- ======================================================== -->
+  <div class="flex-1 flex flex-col min-w-0">
+    
+    <!-- TOP HEADER BAR: Search, Notifications, Profile (From Mockup) -->
+    <header class="bg-white border-b border-gray-200/80 sticky top-0 z-30 h-16 flex items-center justify-between px-4 sm:px-8">
+      
+      <!-- Mobile Menu Trigger + Search Bar -->
+      <div class="flex items-center gap-3 flex-1 max-w-xl">
+        <button type="button" onclick="toggleCornerDrawer(true)" class="md:hidden p-2 rounded-xl text-gray-700 hover:bg-gray-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+
+        <!-- Search Bar with Magnifying Glass (From Mockup) -->
+        <div class="relative w-full max-w-md hidden sm:block">
+          <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </span>
+          <input type="text" id="customerSearchInput" oninput="filterCustomerList()"
+            placeholder="Search customers, campaigns..."
+            class="w-full bg-[#f4f5f7] border-0 rounded-full pl-10 pr-4 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder-gray-400">
+        </div>
+      </div>
+
+      <!-- Right Header Actions (Bell Notification + Owner Profile) -->
+      <div class="flex items-center gap-4 shrink-0">
+        
+        <!-- Direct Quick Counter QR Launcher -->
+        <a id="counterLink" href="/shop.html" target="_blank"
+          class="bg-[#fef6e7] hover:bg-[#faecd6] text-[#cb8926] border border-amber-200/80 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs whitespace-nowrap" title="Open live counter QR display">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          <span>Counter QR</span>
+          <span class="text-xs">&nearr;</span>
+        </a>
+
+        <!-- Notification Bell with Interactive Dropdown -->
+        <div class="relative">
+          <button type="button" onclick="toggleNotifications()" id="notifBellBtn"
+            class="relative p-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none" title="Store Notifications">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+            <span id="notifBadge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">0</span>
+          </button>
+
+          <!-- Notification Dropdown Panel -->
+          <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-gray-100">
+            <div class="p-3.5 bg-gray-50 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-xs text-gray-900">Live Customer Activity</span>
+                <span id="notifUnreadCountPill" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">0 new</span>
+              </div>
+              <button type="button" onclick="markAllNotificationsRead()" class="text-[11px] font-bold text-[#cb8926] hover:underline">Mark all read</button>
+            </div>
+            <div id="notifList" class="max-h-80 overflow-y-auto p-2 space-y-1 divide-y divide-gray-50">
+              <div class="py-8 text-center text-xs text-gray-400">No new notifications yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Owner Profile Trigger: Avatar + Name + Dropdown Arrow (Clickable to edit logo & profile) -->
+        <button type="button" onclick="openOwnerProfileModal()"
+          class="flex items-center gap-2.5 pl-2 border-l border-gray-200 hover:opacity-85 transition-opacity text-left focus:outline-none cursor-pointer" title="Click to view shop info & change logo">
+          <div id="topOwnerAvatar" class="w-9 h-9 rounded-full bg-[#111113] border border-amber-500/60 text-amber-500 flex items-center justify-center text-sm shadow-xs font-bold overflow-hidden shrink-0">
+            ☕
+          </div>
+          <div class="hidden sm:block text-left">
+            <div id="topOwnerName" class="font-extrabold text-xs text-gray-900 leading-tight">Sunrise Café</div>
+            <div class="text-[10px] text-gray-400 font-medium flex items-center gap-1">
+              <span>Owner</span>
+              <span class="text-amber-500 font-bold">• Shop Logo</span>
+            </div>
+          </div>
+          <svg class="w-3.5 h-3.5 text-gray-400 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+
+      </div>
+
+    </header>
+
+    <!-- Global Notification / Alert Bar -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-8 pt-4 w-full">
+      <div id="settingsAlert" class="hidden rounded-xl border p-3.5 text-xs font-semibold text-center transition-all shadow-sm"></div>
+    </div>
+
+    <!-- Main Views Area -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-8 py-6 w-full flex-1">
+      
+      <!-- ======================================================== -->
+      <!-- VIEW 1: DASHBOARD MAIN COCKPIT (MATCHES TOP HALF IMAGE)   -->
+      <!-- ======================================================== -->
+      <div id="viewDashboard" class="space-y-6">
+        
+        <!-- Welcome Greeting & Date Filter (From Mockup) -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight" id="welcomeGreeting">
+              Welcome back, Sunrise Café!
+            </h1>
+            
+          </div>
+
+          <!-- Date Dropdown Filter "Today ∨" (From Mockup) -->
+          <div class="flex items-center gap-2 self-start sm:self-auto">
+            <button type="button" class="bg-white border border-gray-200/90 rounded-xl px-3.5 py-2 text-xs font-bold text-gray-700 shadow-2xs flex items-center gap-2 hover:bg-gray-50 transition-colors">
+              <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>Today</span>
+              <span class="text-gray-400 text-[10px]">&dtrif;</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3-Column Layout: Left (Main metrics + Activity + Enrolled) | Right (Quick Actions + Promo) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          <!-- LEFT 8-9 COLS: Metrics, Recent Activity, Growth Chart, Enrolled Customers -->
+          <div class="lg:col-span-8 space-y-6">
+            
+            <!-- ROW 1: 4 STAT METRIC CARDS (Exact match to Mockup) -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              
+              <!-- Stat Card 1: Total Customers -->
+              <div onclick="openViewFromMenu('customers')" class="bg-white border border-gray-200/80 rounded-2xl p-4 card-shadow cursor-pointer hover:border-amber-300 transition-all flex flex-col justify-between space-y-2">
+                <div class="w-9 h-9 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </div>
+                <div>
+                  <span class="text-[11px] font-semibold text-gray-500 block">Total Customers</span>
+                  <div id="statCustomers" class="text-2xl font-black text-gray-900 tracking-tight">0</div>
+                </div>
+                <div class="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                  <span>&uarr; 12%</span>
+                  <span class="text-gray-400 font-normal">vs. last week</span>
+                </div>
+              </div>
+
+              <!-- Stat Card 2: Total Stamps Collected -->
+              <div class="bg-white border border-gray-200/80 rounded-2xl p-4 card-shadow flex flex-col justify-between space-y-2">
+                <div class="w-9 h-9 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                  <span class="text-[11px] font-semibold text-gray-500 block">Total Stamps</span>
+                  <div id="statStamps" class="text-2xl font-black text-gray-900 tracking-tight">0</div>
+                </div>
+                <div class="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                  <span>&uarr; 18%</span>
+                  <span class="text-gray-400 font-normal">vs. last week</span>
+                </div>
+              </div>
+
+              <!-- Stat Card 3: Rewards Redeemed -->
+              <div onclick="openViewFromMenu('reward')" class="bg-white border border-gray-200/80 rounded-2xl p-4 card-shadow cursor-pointer hover:border-amber-300 transition-all flex flex-col justify-between space-y-2">
+                <div class="w-9 h-9 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V4a2 2 0 112 2h-2zm0 0V4a2 2 0 10-2 2h2m-7 4h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/></svg>
+                </div>
+                <div>
+                  <span class="text-[11px] font-semibold text-gray-500 block">Rewards Redeemed</span>
+                  <div id="statRewards" class="text-2xl font-black text-gray-900 tracking-tight">0</div>
+                </div>
+                <div class="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                  <span>&uarr; 22%</span>
+                  <span class="text-gray-400 font-normal">vs. last week</span>
+                </div>
+              </div>
+
+              <!-- Stat Card 4: Active Campaigns -->
+              <div onclick="openViewFromMenu('cooldown')" class="bg-white border border-gray-200/80 rounded-2xl p-4 card-shadow cursor-pointer hover:border-amber-300 transition-all flex flex-col justify-between space-y-2">
+                <div class="w-9 h-9 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                </div>
+                <div>
+                  <span class="text-[11px] font-semibold text-gray-500 block">Active Campaigns</span>
+                  <div id="statCampaigns" class="text-2xl font-black text-gray-900 tracking-tight">1</div>
+                </div>
+                <div class="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Running smoothly</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- ROW 2: 2 CARDS (Recent Activity + Customer Growth Chart) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              <!-- Recent Activity Card (Exact match to Mockup) -->
+              <div class="bg-white border border-gray-200/80 rounded-2xl p-5 card-shadow flex flex-col justify-between space-y-3">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                  <h3 class="text-sm font-bold text-gray-900">Recent Activity</h3>
+                  <button type="button" onclick="openViewFromMenu('customers')" class="text-xs font-semibold text-[#cb8926] hover:underline">
+                    View All
+                  </button>
+                </div>
+
+                <!-- Dynamic Activity List (Container id="activityList") -->
+                <div id="activityList" class="space-y-3 divide-y divide-gray-100/60 max-h-72 overflow-y-auto pr-1">
+                  <div class="py-8 text-center text-xs text-gray-400">
+                    No activity recorded yet. Live stamps will show here.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Customer Growth Chart Card (Exact match to Mockup) -->
+              <div class="bg-white border border-gray-200/80 rounded-2xl p-5 card-shadow flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                  <h3 class="text-sm font-bold text-gray-900">Customer Growth</h3>
+                  <button type="button" class="text-xs font-semibold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200">
+                    Last 7 Days ▾
+                  </button>
+                </div>
+
+                <!-- Golden Curve Line Chart -->
+                <div class="relative pt-2">
+                  
+                  <!-- Tooltip 342 ↑ (From Mockup) -->
+                  <div id="chartGrowthBadge" class="absolute right-6 top-0 bg-black text-white text-[10px] font-mono px-2 py-0.5 rounded-md font-bold shadow-md">
+                    0 &uarr;
+                  </div>
+
+                  <svg class="w-full h-36" viewBox="0 0 300 120" fill="none">
+                    <!-- Y Axis Grid Lines -->
+                    <line x1="25" y1="20" x2="295" y2="20" stroke="#f1f2f4" stroke-dasharray="3 3" />
+                    <line x1="25" y1="50" x2="295" y2="50" stroke="#f1f2f4" stroke-dasharray="3 3" />
+                    <line x1="25" y1="80" x2="295" y2="80" stroke="#f1f2f4" stroke-dasharray="3 3" />
+                    
+                    <!-- Dynamic Y-Axis Labels -->
+                    <g id="chartYLabels">
+                      <text id="chartY3" x="5" y="24" fill="#9ca3af" font-size="9" font-family="JetBrains Mono">3</text>
+                      <text id="chartY2" x="5" y="54" fill="#9ca3af" font-size="9" font-family="JetBrains Mono">2</text>
+                      <text id="chartY1" x="5" y="84" fill="#9ca3af" font-size="9" font-family="JetBrains Mono">1</text>
+                      <text id="chartY0" x="10" y="112" fill="#9ca3af" font-size="9" font-family="JetBrains Mono">0</text>
+                    </g>
+
+                    <!-- Golden Gradient Area (Dynamic) -->
+                    <path id="chartAreaPath" d="M 35 105 L 285 105 L 285 110 L 35 110 Z" fill="url(#goldChartGradient)" opacity="0.35" />
+                    
+                    <!-- Golden Solid Line (Dynamic) -->
+                    <path id="chartLinePath" d="M 35 105 L 285 105" stroke="#e5a83b" stroke-width="2.5" stroke-linecap="round" fill="none" />
+                    
+                    <defs>
+                      <linearGradient id="goldChartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#e5a83b" />
+                        <stop offset="100%" stop-color="#ffffff" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+
+                  <!-- Dynamic X-Axis Days -->
+                  <div id="chartXLabels" class="flex justify-between text-[10px] text-gray-400 font-mono px-6 pt-1">
+                    <span>Mon</span>
+                    <span>Tue</span>
+                    <span>Wed</span>
+                    <span>Thu</span>
+                    <span>Fri</span>
+                    <span>Sat</span>
+                    <span>Sun</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- ROW 3: ENROLLED CUSTOMERS (Exact match to Mockup) -->
+            <div class="bg-white border border-gray-200/80 rounded-2xl p-5 card-shadow space-y-4">
+              
+              <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-bold text-gray-900">Enrolled Customers</h3>
+                    
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="openViewFromMenu('customers')"
+                    class="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 shadow-2xs">
+                    <span>Customers</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Dynamic Enrolled Customers Row -->
+              <div id="customerOverviewList" class="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div class="w-full py-6 text-center text-xs text-gray-400">
+                  No customers registered yet. Once customers scan your QR, they will appear here.
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- RIGHT 4 COLS: Grow Business Promo Card -->
+          <div class="lg:col-span-4 space-y-6">
+            
+            <!-- "Grow Your Business with MarkU" PROMO -->
+            <div class="bg-[#121214] text-white rounded-3xl p-6 border border-gray-800 relative overflow-hidden space-y-4 shadow-xl">
+              
+              <!-- Subtle Gold Crown Graphic Top Right -->
+              <span class="absolute top-4 right-5 text-amber-400 text-lg opacity-80">👑</span>
+
+              <div class="space-y-1 relative z-10 max-w-[200px]">
+                <h4 class="text-base font-extrabold tracking-tight leading-snug">
+                  Grow Your Business with <span class="text-[#e5a83b]">MarkU</span>
+                </h4>
+              </div>
+
+              <div class="pt-2 relative z-10">
+                <button type="button" onclick="openViewFromMenu('reward')"
+                  class="btn-gold px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <span>Stamp Card Rules</span>
+                  <span>&rarr;</span>
+                </button>
+              </div>
+
+              <!-- Mini Mockup Phone peeking in background -->
+              <div class="absolute -bottom-6 -right-3 w-28 h-40 bg-[#1c1c1f] rounded-2xl border-2 border-amber-500/40 p-2 shadow-2xl opacity-90 transform rotate-6">
+                <div class="text-[8px] text-center font-bold text-amber-400">Sunrise Café</div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <div class="aspect-square bg-amber-400 rounded-full flex items-center justify-center text-[8px] text-black font-bold">★</div>
+                  <div class="aspect-square bg-amber-400 rounded-full flex items-center justify-center text-[8px] text-black font-bold">★</div>
+                  <div class="aspect-square border border-gray-500 rounded-full"></div>
+                  <div class="aspect-square border border-gray-500 rounded-full"></div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Quick Jump to Settings -->
+            <div class="bg-white border border-gray-200/80 rounded-2xl p-4 card-shadow flex items-center justify-between">
+              <div>
+                <h4 class="font-bold text-xs text-gray-900">Manage Shop Settings</h4>
+                <p class="text-[11px] text-gray-400">Quick actions & account tools</p>
+              </div>
+              <button type="button" onclick="openViewFromMenu('settings')"
+                class="px-3.5 py-1.5 rounded-xl bg-gray-100 hover:bg-[#fdf6e9] hover:text-[#cb8926] text-gray-700 text-xs font-bold transition-all">
+                Settings &rarr;
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 2: STAMP CARDS & REWARD SETTINGS                    -->
+      <!-- ======================================================== -->
+      <div id="viewReward" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400">Stamp Card Rules</span>
+        </div>
+
+        <div class="max-w-2xl bg-white border border-gray-200/90 rounded-2xl p-6 sm:p-8 card-shadow space-y-6">
+          <div class="pb-4 border-b border-gray-100 flex items-start gap-3.5">
+            <span class="w-10 h-10 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center text-lg font-bold shrink-0">
+              🎁
+            </span>
+            <div>
+              <h2 class="text-base font-extrabold text-gray-900">Reward & Stamp Goal Settings</h2>
+              
+            </div>
+          </div>
+
+          <form onsubmit="handleSaveSettings(event)" class="space-y-6">
+            <div class="space-y-2.5">
+              <label for="settingReward" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Reward Unlocked On Card Completion
+              </label>
+              <input type="text" id="settingReward" required
+                placeholder="e.g. Free Specialty Coffee, 20% Bill Discount"
+                class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium">
+
+              <div class="space-y-1.5 pt-1">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Popular 1-Tap Presets:</span>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" onclick="fillRewardPreset('Free Specialty Coffee')" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-[#fdf6e9] hover:border-amber-300 transition-all text-gray-700">Free Coffee</button>
+                  <button type="button" onclick="fillRewardPreset('20% Total Bill Discount')" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-[#fdf6e9] hover:border-amber-300 transition-all text-gray-700">20% Discount</button>
+                  <button type="button" onclick="fillRewardPreset('Buy 1 Get 1 Free Item')" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-[#fdf6e9] hover:border-amber-300 transition-all text-gray-700">Buy 1 Get 1</button>
+                  <button type="button" onclick="fillRewardPreset('Free Chef Dessert / Pastry')" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-[#fdf6e9] hover:border-amber-300 transition-all text-gray-700">Free Dessert</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-3 pt-2 border-t border-gray-100">
+              <label for="settingTarget" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Stamps Required Per Free Reward
+              </label>
+
+              <div class="flex flex-wrap gap-2" id="targetPillGroup">
+                <button type="button" onclick="setTargetPreset(5)" data-target="5" class="target-pill px-3 py-1.5 text-xs font-bold rounded-xl border border-gray-200 text-gray-700 hover:border-amber-500 hover:bg-amber-50 transition-all">5 Stamps</button>
+                <button type="button" onclick="setTargetPreset(8)" data-target="8" class="target-pill px-3 py-1.5 text-xs font-bold rounded-xl border border-gray-200 text-gray-700 hover:border-amber-500 hover:bg-amber-50 transition-all">8 Stamps</button>
+                <button type="button" onclick="setTargetPreset(10)" data-target="10" class="target-pill px-3 py-1.5 text-xs font-bold rounded-xl border border-amber-600 bg-amber-50 text-amber-800 transition-all">10 Stamps · Standard</button>
+                <button type="button" onclick="setTargetPreset(12)" data-target="12" class="target-pill px-3 py-1.5 text-xs font-bold rounded-xl border border-gray-200 text-gray-700 hover:border-amber-500 hover:bg-amber-50 transition-all">12 Stamps</button>
+              </div>
+
+              <div class="flex items-center gap-2 max-w-xs">
+                <button type="button" onclick="stepTarget(-1)" class="w-10 h-10 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 font-bold text-lg flex items-center justify-center">-</button>
+                <input type="number" id="settingTarget" min="2" max="50" required
+                  class="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-center text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button type="button" onclick="stepTarget(1)" class="w-10 h-10 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 font-bold text-lg flex items-center justify-center">+</button>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-gray-100">
+              <button type="submit" id="saveRewardBtn" class="btn-gold px-7 py-3 rounded-xl text-xs sm:text-sm font-bold">
+                Save Stamp Card Rules &rarr;
+              </button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 3: CAMPAIGNS & ANTI-CHEAT COOLDOWN                  -->
+      <!-- ======================================================== -->
+      <div id="viewCooldown" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400">Campaigns & Anti-Cheat</span>
+        </div>
+
+        <div class="bg-white border border-gray-200/90 rounded-2xl p-6 sm:p-8 card-shadow space-y-6">
+          <div class="pb-4 border-b border-gray-100 flex items-start gap-3.5">
+            <span class="w-11 h-11 rounded-2xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center text-xl font-bold shrink-0">
+              🛡️
+            </span>
+            <div>
+              <h2 class="text-base font-extrabold text-gray-900">Anti-Cheat Customer Visit Cooldown</h2>
+              
+            </div>
+          </div>
+
+          <form onsubmit="handleSaveSettings(event)" class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5" id="cooldownCardGroup">
+              
+              <div onclick="setInteractiveCooldown(0)" data-hours="0" class="cooldown-card p-4 rounded-xl border-2 border-gray-200 hover:border-amber-400 bg-white cursor-pointer transition-all flex flex-col justify-between space-y-2">
+                <div>
+                  <div class="font-mono font-bold text-sm text-gray-800">0h</div>
+                  <h4 class="font-bold text-xs text-gray-900">Instant / Test Mode</h4>
+                  
+                </div>
+              </div>
+
+              <div onclick="setInteractiveCooldown(1)" data-hours="1" class="cooldown-card p-4 rounded-xl border-2 border-gray-200 hover:border-amber-400 bg-white cursor-pointer transition-all flex flex-col justify-between space-y-2">
+                <div>
+                  <div class="font-mono font-bold text-sm text-gray-800">1h</div>
+                  <h4 class="font-bold text-xs text-gray-900">High Velocity</h4>
+                  
+                </div>
+              </div>
+
+              <div onclick="setInteractiveCooldown(12)" data-hours="12" class="cooldown-card p-4 rounded-xl border-2 border-gray-200 hover:border-amber-400 bg-white cursor-pointer transition-all flex flex-col justify-between space-y-2">
+                <div>
+                  <div class="font-mono font-bold text-sm text-gray-800">12h</div>
+                  <h4 class="font-bold text-xs text-gray-900">Twice Daily</h4>
+                  
+                </div>
+              </div>
+
+              <div onclick="setInteractiveCooldown(24)" data-hours="24" class="cooldown-card p-4 rounded-xl border-2 border-amber-600 bg-amber-50/50 cursor-pointer transition-all flex flex-col justify-between space-y-2">
+                <div>
+                  <div class="font-mono font-bold text-sm text-amber-900">24h</div>
+                  <h4 class="font-bold text-xs text-gray-900">Daily Visit (Standard)</h4>
+                  
+                </div>
+              </div>
+
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-gray-900 block">Exact Cooldown Hours</span>
+                <span id="cooldownDetailText" class="text-[11px] text-gray-400 font-mono">12.0 Hours between allowed visits</span>
+              </div>
+              <input type="number" id="settingCooldown" step="any" min="0" max="720" required oninput="onCooldownNumberChange(this.value)"
+                class="w-24 bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-center text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <button type="submit" id="saveCooldownBtn" class="btn-gold px-7 py-3 rounded-xl text-xs sm:text-sm font-bold">
+              Save Campaign Rules &rarr;
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 4: CUSTOMER DIRECTORY                               -->
+      <!-- ======================================================== -->
+      <div id="viewCustomers" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400" id="custCountLabel">0 customers</span>
+        </div>
+
+        <div class="bg-white border border-gray-200/90 rounded-2xl card-shadow overflow-hidden">
+          <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-base font-bold text-gray-900">Enrolled Customers Directory</h2>
+          </div>
+
+          <div id="customerList" class="p-3 divide-y divide-gray-100 overflow-y-auto max-h-[500px]">
+            <div class="text-gray-400 text-xs py-16 text-center">No customers yet. Place your counter QR at checkout!</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 5: DEDICATED REVIEWS                                 -->
+      <!-- ======================================================== -->
+      <div id="viewReviews" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400">Customer Reviews & Social Engagement</span>
+        </div>
+
+        <div class="max-w-2xl bg-white border border-gray-200/90 rounded-2xl p-6 sm:p-8 card-shadow space-y-6">
+          <div class="pb-4 border-b border-gray-100 flex items-start gap-3.5">
+            <span class="w-10 h-10 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center text-lg font-bold shrink-0">
+              ⭐
+            </span>
+            <div class="flex-1">
+              <h2 class="text-base font-bold text-gray-900">Google Reviews & Instagram Links</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Collect 5-star Google reviews and grow followers directly from customer passes.</p>
+            </div>
+          </div>
+
+          <!-- Dynamic Status Banner showing whether review links are added -->
+          <div id="reviewsStatusBox" class="p-3.5 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span id="reviewsStatusIcon" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+              <span id="reviewsStatusText" class="font-bold text-gray-700">Review links not configured yet.</span>
+            </div>
+            <span id="reviewsStatusPill" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">INACTIVE</span>
+          </div>
+
+          <form onsubmit="handleSaveReviewsFromView(event)" class="space-y-5">
+            <div class="space-y-1.5">
+              <label for="viewReviewsGoogle" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Google Business Review Link
+              </label>
+              <input type="url" id="viewReviewsGoogle"
+                placeholder="https://g.page/r/.../review or Google Maps link"
+                class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="viewReviewsInstagram" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Instagram Profile or Handle
+              </label>
+              <input type="text" id="viewReviewsInstagram"
+                placeholder="https://instagram.com/yourshop or @yourshop"
+                class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="flex items-center gap-3 pt-1">
+              <button type="submit" id="saveViewReviewsBtn" class="btn-gold px-7 py-3 rounded-xl text-xs sm:text-sm font-bold shadow-sm">
+                Save Review Links &rarr;
+              </button>
+              <span id="viewReviewsSavedBadge" class="hidden text-xs font-bold text-emerald-600 animate-pulse">✓ Saved & Synced Live!</span>
+            </div>
+          </form>
+        </div>
+
+      </div>
+
+      <!-- ======================================================== -->
+      <!-- VIEW 6: SETTINGS (QUICK ACTIONS & ACCOUNT MANAGEMENT)     -->
+      <!-- ======================================================== -->
+      <div id="viewSettings" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400">Account & Quick Actions</span>
+        </div>
+
+        <div class="max-w-2xl bg-white border border-gray-200/90 rounded-2xl p-6 sm:p-8 card-shadow space-y-6">
+          <div class="pb-4 border-b border-gray-100 flex items-start gap-3.5">
+            <span class="w-10 h-10 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center text-lg font-bold shrink-0">
+              ⚙️
+            </span>
+            <div>
+              <h2 class="text-base font-bold text-gray-900">Settings & Quick Actions</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Manage terminal display, kiosk app installation, and account security.</p>
+            </div>
+          </div>
+
+          <!-- Quick Actions Grid inside Settings -->
+          <div class="space-y-3">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-gray-400 block">Quick Action Tools:</span>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              
+              <!-- Install App (PWA) -->
+              <button type="button" onclick="openInstallModal()"
+                class="p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-amber-50/40 flex items-center gap-3 transition-all text-left">
+                <span class="w-10 h-10 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-[#cb8926]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                </span>
+                <div>
+                  <div class="font-bold text-xs text-gray-900">Install App (PWA)</div>
+                  <div class="text-[10px] text-gray-400">Home screen kiosk</div>
+                </div>
+              </button>
+
+              <!-- Launch Counter Terminal Screen -->
+              <a id="drawerCounterLink" href="/shop.html" target="_blank"
+                class="p-4 rounded-xl border border-gray-200 hover:border-amber-300 hover:bg-amber-50/40 flex items-center gap-3 transition-all text-left">
+                <span class="w-10 h-10 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5 text-[#cb8926]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </span>
+                <div>
+                  <div class="font-bold text-xs text-gray-900">Counter Screen</div>
+                  <div class="text-[10px] text-gray-400">Rolling QR checkout</div>
+                </div>
+              </a>
+
+            </div>
+
+            <div class="pt-4 border-t border-gray-100 space-y-3">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-gray-400 block">Account & Security:</span>
+
+              <div class="flex flex-col sm:flex-row gap-3">
+                <!-- Sign Out -->
+                <button type="button" onclick="handleLogout()"
+                  class="flex-1 p-3.5 rounded-xl border border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2 text-xs font-bold text-gray-700 transition-all">
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                  <span>Sign Out</span>
+                </button>
+
+                <!-- Delete Account -->
+                <button type="button" onclick="openDeleteModal()"
+                  class="flex-1 p-3.5 rounded-xl border border-red-200 hover:bg-red-50 text-red-600 flex items-center justify-center gap-2 text-xs font-bold transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  <span>Delete Account</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODALS: INSTALL, DELETE, OUTLET, SOCIAL                  -->
+  <!-- ======================================================== -->
+  <!-- Install App Modal -->
+  <div id="installModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-sm font-bold text-gray-900">Install MarkU App (PWA)</h3>
+        <button onclick="closeInstallModal()" class="text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <p class="text-xs text-gray-600 leading-relaxed">
+        Install MarkU to your home screen for rapid 1-tap counter kiosk deployment without any app store download.
+      </p>
+      <div class="pt-2">
+        <button onclick="triggerPwaInstall()" class="w-full btn-gold py-2.5 rounded-xl text-xs font-bold">
+          Install Now &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Modal -->
+  <div id="deleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+      <h3 class="text-sm font-bold text-red-600">Permanently Delete Shop Account</h3>
+      <p class="text-xs text-gray-600">Are you sure? This will delete all enrolled customer cards and stamp records.</p>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100">Cancel</button>
+        <button onclick="confirmDeleteAccount()" class="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Shop Modal -->
+  <div id="createShopModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 space-y-4">
+      <div class="flex items-center justify-between border-b pb-3">
+        <h3 class="text-sm font-bold text-gray-900">Add New Shop Outlet</h3>
+        <button onclick="closeCreateShopModal()" class="text-gray-400 hover:text-gray-600">&times;</button>
+      </div>
+      <form onsubmit="handleCreateShopSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Outlet Name</label>
+          <input type="text" id="newShopName" required placeholder="e.g. Sunrise Café Uptown"
+            class="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500">
+        </div>
+        <button type="submit" class="w-full btn-gold py-2.5 rounded-xl text-xs font-bold">
+          Create Outlet &rarr;
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Corner Drawer for Mobile Devices -->
+  <div id="cornerDrawer" class="hidden fixed inset-0 z-50 overflow-hidden">
+    <div id="drawerBackdrop" onclick="toggleCornerDrawer(false)" class="absolute inset-0 bg-black/60 backdrop-blur-xs"></div>
+    <div class="absolute inset-y-0 left-0 max-w-full flex">
+      <div class="w-72 bg-[#0e0e10] text-white p-5 flex flex-col justify-between">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between border-b border-white/10 pb-4">
+            <span class="text-xl font-black text-white">Mark<span class="text-[#d99b3b]">U</span></span>
+            <button onclick="toggleCornerDrawer(false)" class="text-gray-400">&times;</button>
+          </div>
+          <nav class="space-y-2 text-xs font-semibold">
+            <button onclick="openViewFromMenu('dashboard'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Dashboard</button>
+            <button onclick="openViewFromMenu('customers'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Customers</button>
+            <button onclick="openViewFromMenu('reward'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Stamp Cards</button>
+            <button onclick="openViewFromMenu('cooldown'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Campaigns</button>
+            <button onclick="openViewFromMenu('reviews'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Reviews</button>
+            <button onclick="openViewFromMenu('settings'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Settings</button>
+          </nav>
+        </div>
+        <button onclick="handleLogout()" class="w-full text-left text-xs text-gray-400 hover:text-white p-2">Sign Out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- SCRIPT LOGIC: COMPLETE OPERATIONAL BACKEND INTEGRATION   -->
+  <!-- ======================================================== -->
+  <script>
+    const token = localStorage.getItem('owner_token');
+    let currentShop = null;
+    let ownerShops = [];
+    let cachedCustomers = [];
+    let isUserEditingSettings = false;
+    let deferredPrompt = null;
+    let activeShopSlug = new URLSearchParams(window.location.search).get('shop') || '';
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (!token) {
+        window.location.href = '/owner/login.html';
+        return;
+      }
+
+      ['settingReward', 'settingTarget', 'settingCooldown', 'customerSearchInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('focus', () => { isUserEditingSettings = true; });
+          el.addEventListener('blur', () => { isUserEditingSettings = false; });
+        }
+      });
+
+      loadDashboard();
+      setInterval(loadDashboard, 3000); // 3-second live poll
+    });
+
+    async function loadDashboard() {
+      try {
+        const queryParam = activeShopSlug ? `?shop=${encodeURIComponent(activeShopSlug)}` : '';
+        const res = await fetch(`/api/owner/dashboard${queryParam}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!data.success) {
+          handleLogout();
+          return;
+        }
+
+        currentShop = data.shop;
+        ownerShops = data.shops || [currentShop];
+        cachedCustomers = data.customers || [];
+        if (!activeShopSlug) activeShopSlug = currentShop.slug;
+
+        // Populate Switcher
+        const switcherEl = document.getElementById('shopSwitcherSelect');
+        if (switcherEl && ownerShops.length > 0) {
+          switcherEl.innerHTML = ownerShops.map(s => `
+            <option value="${escapeHtml(s.slug)}" ${s.slug === currentShop.slug ? 'selected' : ''}>
+              ${escapeHtml(s.name)}
+            </option>
+          `).join('');
+        }
+
+        // Header Titles
+        if (document.getElementById('headerShopName')) document.getElementById('headerShopName').textContent = currentShop.name;
+        if (document.getElementById('headerSlug')) document.getElementById('headerSlug').textContent = `/shop/${currentShop.slug}`;
+        if (document.getElementById('welcomeGreeting')) document.getElementById('welcomeGreeting').textContent = `Welcome back, ${currentShop.name}!`;
+        if (document.getElementById('topOwnerName')) document.getElementById('topOwnerName').textContent = currentShop.name;
+
+        const counterUrl = `${window.location.origin}/shop.html?shop=${encodeURIComponent(currentShop.slug)}`;
+        if (document.getElementById('counterLink')) document.getElementById('counterLink').href = counterUrl;
+        if (document.getElementById('drawerCounterLink')) document.getElementById('drawerCounterLink').href = counterUrl;
+
+        // Form Fields
+        const stampsTarget = currentShop.stampsTarget || 10;
+        const rewardDesc = currentShop.rewardDescription || '1 Free Item';
+        const cooldownHours = (currentShop.cooldownHours !== undefined && currentShop.cooldownHours !== null) ? currentShop.cooldownHours : 7;
+        const googleReview = currentShop.googleReviewUrl || '';
+        const instagram = currentShop.instagramUrl || '';
+
+        if (!isUserEditingSettings) {
+          if (document.getElementById('settingReward')) document.getElementById('settingReward').value = rewardDesc;
+          if (document.getElementById('settingTarget')) document.getElementById('settingTarget').value = stampsTarget;
+          if (document.getElementById('settingCooldown')) document.getElementById('settingCooldown').value = cooldownHours;
+          if (document.getElementById('viewReviewsGoogle')) document.getElementById('viewReviewsGoogle').value = googleReview;
+          if (document.getElementById('viewReviewsInstagram')) document.getElementById('viewReviewsInstagram').value = instagram;
+        }
+
+        // Update Logo & Avatars across Owner UI
+        updateOwnerLogoDisplays(currentShop.logoUrl);
+
+        // Update Reviews Tab Verified Indicator & Button Text
+        updateReviewsTabState(googleReview, instagram);
+
+        // Update Notifications Dropdown & Badge
+        updateNotificationsList(data.recentActivity, cachedCustomers);
+
+        // Metrics
+        const totalCust = data.metrics ? data.metrics.totalCustomers : (data.customers || []).length;
+        const totalStamps = data.metrics ? data.metrics.totalStampsIssued : 0;
+        const totalRewards = data.metrics ? data.metrics.totalRewardsClaimed : 0;
+
+        if (document.getElementById('statCustomers')) document.getElementById('statCustomers').textContent = totalCust;
+        if (document.getElementById('chartGrowthBadge')) document.getElementById('chartGrowthBadge').textContent = `${totalCust} ↑`;
+        if (document.getElementById('statStamps')) document.getElementById('statStamps').textContent = totalStamps.toLocaleString();
+        if (document.getElementById('statRewards')) document.getElementById('statRewards').textContent = totalRewards;
+
+        renderCustomerList(cachedCustomers, stampsTarget);
+        renderGrowthChart(cachedCustomers, data.recentActivity);
+
+        // Recent Activity
+        const actList = document.getElementById('activityList');
+        if (actList) {
+          if (data.recentActivity && data.recentActivity.length > 0) {
+            actList.innerHTML = data.recentActivity.map(a => `
+              <div class="pt-2 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-8 h-8 rounded-full bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center shrink-0">
+                    ${(a.action_type === 'REWARD_REDEEMED' || a.actionType === 'REWARD_REDEEMED') ? '🎁' : '★'}
+                  </span>
+                  <div>
+                    <div class="font-bold text-gray-900">${escapeHtml(a.customer_name || a.customerName || a.phone)} ${(a.action_type === 'REWARD_REDEEMED' || a.actionType === 'REWARD_REDEEMED') ? 'redeemed a reward' : 'collected a stamp'}</div>
+                    <div class="text-[10px] text-gray-400 font-mono">${new Date(a.created_at || a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                  </div>
+                </div>
+                <span class="text-gray-300">&rsaquo;</span>
+              </div>
+            `).join('');
+          } else {
+            actList.innerHTML = '<div class="py-8 text-center text-xs text-gray-400">No activity recorded yet. Live stamps will show here.</div>';
+          }
+        }
+
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    
+    function renderGrowthChart(customers, recentActivity) {
+      const custList = customers || [];
+      const actList = recentActivity || [];
+      
+      // 1. Generate last 7 days buckets
+      const now = new Date();
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const buckets = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        buckets.push({
+          key,
+          label: dayNames[d.getDay()],
+          count: 0
+        });
+      }
+
+      // 2. Count joins/activity per day
+      custList.forEach(c => {
+        const joinTime = c.created_at || c.createdAt || c.last_stamp_at || c.lastStampAt;
+        if (joinTime) {
+          try {
+            const dayKey = new Date(joinTime).toISOString().slice(0, 10);
+            const b = buckets.find(x => x.key === dayKey);
+            if (b) b.count++;
+          } catch(e) {}
+        }
+      });
+
+      const total = custList.length;
+      let running = Math.max(0, total - buckets.reduce((acc, b) => acc + b.count, 0));
+      const points = buckets.map(b => {
+        running += b.count;
+        return running;
+      });
+
+      const maxVal = Math.max(total, ...points, 1);
+      
+      // Y-axis tick values: normal realistic scale
+      let y3 = Math.ceil(maxVal);
+      let y2 = Math.ceil(maxVal * 0.66);
+      let y1 = Math.ceil(maxVal * 0.33);
+      let y0 = 0;
+      if (total === 0) {
+        y3 = 3; y2 = 2; y1 = 1; y0 = 0;
+      }
+
+      if (document.getElementById('chartY3')) document.getElementById('chartY3').textContent = y3;
+      if (document.getElementById('chartY2')) document.getElementById('chartY2').textContent = y2;
+      if (document.getElementById('chartY1')) document.getElementById('chartY1').textContent = y1;
+      if (document.getElementById('chartY0')) document.getElementById('chartY0').textContent = y0;
+
+      // Update X-axis day labels
+      const xLabelsEl = document.getElementById('chartXLabels');
+      if (xLabelsEl) {
+        xLabelsEl.innerHTML = buckets.map(b => `<span>${b.label}</span>`).join('');
+      }
+
+      // Calculate SVG curve coordinates (viewBox 0 0 300 120)
+      const coords = points.map((p, idx) => {
+        const x = 35 + idx * (250 / 6);
+        const ratio = total > 0 ? (p / maxVal) : 0;
+        const y = 105 - (ratio * 80);
+        return { x, y };
+      });
+
+      // Build SVG smooth path
+      let pathD = `M ${coords[0].x} ${coords[0].y}`;
+      for (let i = 1; i < coords.length; i++) {
+        const prev = coords[i - 1];
+        const curr = coords[i];
+        const cpX1 = prev.x + (curr.x - prev.x) / 2;
+        const cpY1 = prev.y;
+        const cpX2 = cpX1;
+        const cpY2 = curr.y;
+        pathD += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${curr.x} ${curr.y}`;
+      }
+
+      const lineEl = document.getElementById('chartLinePath');
+      const areaEl = document.getElementById('chartAreaPath');
+      if (lineEl) lineEl.setAttribute('d', pathD);
+      if (areaEl) {
+        const areaD = `${pathD} L ${coords[coords.length - 1].x} 110 L ${coords[0].x} 110 Z`;
+        areaEl.setAttribute('d', areaD);
+      }
+
+      const badgeEl = document.getElementById('chartGrowthBadge');
+      if (badgeEl) {
+        badgeEl.textContent = `${total} ↑`;
+      }
+    }
+
+    function renderCustomerList(customers, stampsTarget) {
+      const custList = document.getElementById('customerList');
+      const overviewList = document.getElementById('customerOverviewList');
+      const target = stampsTarget || (currentShop ? currentShop.stampsTarget : 10) || 10;
+      
+      const countText = `${(customers || []).length} customers`;
+      if (document.getElementById('custCountLabel')) document.getElementById('custCountLabel').textContent = countText;
+
+      if (!customers || customers.length === 0) {
+        if (overviewList) {
+          overviewList.innerHTML = '<div class="w-full py-6 text-center text-xs text-gray-400">No customers registered yet. Once customers scan your QR, they will appear here.</div>';
+        }
+        if (custList) {
+          custList.innerHTML = '<div class="py-12 text-center text-xs text-gray-400">No registered customers found.</div>';
+        }
+        return;
+      }
+
+      // Render Overview List Initial Tokens (R, P, A, S, K)
+      const colors = ['bg-indigo-100 text-indigo-700', 'bg-pink-100 text-pink-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-blue-100 text-blue-700'];
+      const top5 = customers.slice(0, 5);
+      
+      if (overviewList) {
+        overviewList.innerHTML = top5.map((c, idx) => `
+          <div class="flex items-center gap-2.5 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+            <span class="w-9 h-9 rounded-full ${colors[idx % colors.length]} font-black text-xs flex items-center justify-center">
+              ${escapeHtml((c.name || 'C').charAt(0).toUpperCase())}
+            </span>
+            <div>
+              <div class="text-xs font-bold text-gray-900">${escapeHtml(c.name || 'Customer')}</div>
+              <div class="text-[10px] text-gray-400 font-mono">${c.stamps} / ${target} stamps</div>
+            </div>
+          </div>
+        `).join('') + `<button type="button" onclick="openViewFromMenu('customers')" class="text-xs font-bold text-[#cb8926] hover:underline px-2">View All &rsaquo;</button>`;
+      }
+
+      if (custList) {
+        custList.innerHTML = customers.map(c => `
+          <div class="py-3 px-3 flex items-center justify-between text-xs hover:bg-gray-50 rounded-xl transition-colors">
+            <div>
+              <div class="font-bold text-gray-900 text-sm">${escapeHtml(c.name || 'Member')}</div>
+              <div class="text-xs font-mono text-gray-500 mt-0.5">${c.phone}</div>
+            </div>
+            <div class="text-right">
+              <span class="inline-block px-3 py-1 rounded-full font-mono font-bold text-xs bg-amber-50 text-amber-900 border border-amber-200">
+                ${c.stamps} / ${target} stamps
+              </span>
+              <div class="text-[11px] text-gray-400 mt-1">${c.completed_cards || c.completedCards || 0} rewards redeemed</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function filterCustomerList() {
+      const query = (document.getElementById('customerSearchInput').value || '').trim().toLowerCase();
+      if (!query) {
+        renderCustomerList(cachedCustomers);
+        return;
+      }
+      const filtered = cachedCustomers.filter(c => {
+        const name = (c.name || '').toLowerCase();
+        const phone = (c.phone || '').toLowerCase();
+        return name.includes(query) || phone.includes(query);
+      });
+      renderCustomerList(filtered);
+    }
+
+    function openViewFromMenu(viewId) {
+      const views = ['dashboard', 'reward', 'cooldown', 'customers', 'reviews', 'settings'];
+      views.forEach(v => {
+        const el = document.getElementById('view' + capitalizeFirst(v));
+        if (el) el.classList.toggle('hidden', v !== viewId);
+      });
+
+      // Update sidebar nav active state
+      ['Dashboard', 'Customers', 'Reward', 'Cooldown', 'Reviews', 'Settings'].forEach(n => {
+        const navBtn = document.getElementById('sideNav' + n);
+        if (navBtn) {
+          if (n.toLowerCase() === viewId.toLowerCase() || (n === 'Reward' && viewId === 'reward') || (n === 'Reviews' && viewId === 'reviews') || (n === 'Settings' && viewId === 'settings')) {
+            navBtn.className = 'w-full gold-active-nav px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left';
+          } else {
+            navBtn.className = 'w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left';
+          }
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function capitalizeFirst(str) {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function setInteractiveCooldown(h) {
+      isUserEditingSettings = true;
+      const el = document.getElementById('settingCooldown');
+      if (el) el.value = h;
+    }
+
+    function onCooldownNumberChange(val) {
+      isUserEditingSettings = true;
+    }
+
+    function fillRewardPreset(text) {
+      isUserEditingSettings = true;
+      const el = document.getElementById('settingReward');
+      if (el) el.value = text;
+    }
+
+    function setTargetPreset(val) {
+      isUserEditingSettings = true;
+      const el = document.getElementById('settingTarget');
+      if (el) el.value = val;
+    }
+
+    function stepTarget(d) {
+      isUserEditingSettings = true;
+      const el = document.getElementById('settingTarget');
+      if (el) el.value = Math.max(2, Math.min(50, (parseInt(el.value, 10) || 10) + d));
+    }
+
+    async function handleSaveSettings(e) {
+      e.preventDefault();
+      const alertBox = document.getElementById('settingsAlert');
+      alertBox.classList.add('hidden');
+      
+      const payload = {
+        stampsTarget: parseInt(document.getElementById('settingTarget').value, 10),
+        rewardDescription: document.getElementById('settingReward').value.trim(),
+        cooldownHours: parseFloat(document.getElementById('settingCooldown').value) || 0
+      };
+
+      try {
+        const queryParam = activeShopSlug ? `?shop=${encodeURIComponent(activeShopSlug)}` : '';
+        const res = await fetch(`/api/owner/settings${queryParam}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          alertBox.className = 'rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3.5 text-xs font-semibold text-center shadow-sm';
+          alertBox.textContent = '✓ Settings successfully saved and live synced!';
+          alertBox.classList.remove('hidden');
+          isUserEditingSettings = false;
+          loadDashboard();
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function handleSaveReviewsFromView(e) {
+      e.preventDefault();
+      const payload = {
+        googleReviewUrl: document.getElementById('viewReviewsGoogle').value.trim(),
+        instagramUrl: document.getElementById('viewReviewsInstagram').value.trim()
+      };
+      try {
+        const queryParam = activeShopSlug ? `?shop=${encodeURIComponent(activeShopSlug)}` : '';
+        const res = await fetch(`/api/owner/settings${queryParam}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          const badge = document.getElementById('viewReviewsSavedBadge');
+          if (badge) badge.classList.remove('hidden');
+          setTimeout(() => badge?.classList.add('hidden'), 3000);
+          isUserEditingSettings = false;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function onShopSwitcherChange(slug) {
+      if (!slug) return;
+      activeShopSlug = slug;
+      const url = new URL(window.location.href);
+      url.searchParams.set('shop', slug);
+      window.history.pushState({}, '', url);
+      loadDashboard();
+    }
+
+    function openCreateShopModal() { document.getElementById('createShopModal').classList.remove('hidden'); }
+    function closeCreateShopModal() { document.getElementById('createShopModal').classList.add('hidden'); }
+    async function handleCreateShopSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('newShopName').value.trim();
+      const res = await fetch('/api/owner/shops/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (data.success) {
+        closeCreateShopModal();
+        activeShopSlug = data.shop.slug;
+        loadDashboard();
+      }
+    }
+
+    function openInstallModal() { document.getElementById('installModal').classList.remove('hidden'); }
+    function closeInstallModal() { document.getElementById('installModal').classList.add('hidden'); }
+    function triggerPwaInstall() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt = null;
+      }
+      closeInstallModal();
+    }
+
+    function openDeleteModal() { document.getElementById('deleteModal').classList.remove('hidden'); }
+    function closeDeleteModal() { document.getElementById('deleteModal').classList.add('hidden'); }
+    async function confirmDeleteAccount() {
+      const res = await fetch('/api/owner/account/delete', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.removeItem('owner_token');
+        window.location.href = '/owner/register.html';
+      }
+    }
+
+    function toggleCornerDrawer(open) {
+      document.getElementById('cornerDrawer').classList.toggle('hidden', !open);
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('owner_token');
+      window.location.href = '/owner/login.html';
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+  
+    // -------------------------------------------------------------
+    // LOGO CUSTOMIZATION & NOTIFICATIONS LOGIC
+    // -------------------------------------------------------------
+    let currentSelectedLogo = '';
+    let seenActivityTimestamps = new Set(JSON.parse(localStorage.getItem('seen_activity_timestamps') || '[]'));
+
+    function updateOwnerLogoDisplays(logo) {
+      currentSelectedLogo = logo || '';
+      const displayContent = formatAvatarContent(logo);
+
+      const topAvatar = document.getElementById('topOwnerAvatar');
+      if (topAvatar) topAvatar.innerHTML = displayContent;
+
+      const sideAvatar = document.getElementById('sidebarShopAvatar');
+      if (sideAvatar) sideAvatar.innerHTML = displayContent;
+
+      const modalPreview = document.getElementById('modalLogoPreview');
+      if (modalPreview) modalPreview.innerHTML = displayContent;
+    }
+
+    function formatAvatarContent(logo) {
+      if (!logo || !logo.trim()) {
+        return '☕';
+      }
+      const trimmed = logo.trim();
+      if (trimmed.startsWith('data:image') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return '<img src="' + escapeHtml(trimmed) + '" class="w-full h-full object-cover rounded-full" alt="Shop Logo">';
+      }
+      return escapeHtml(trimmed);
+    }
+
+    function openOwnerProfileModal() {
+      if (!currentShop) return;
+      const nameInput = document.getElementById('modalShopNameInput');
+      if (nameInput) nameInput.value = currentShop.name || '';
+
+      const slugEl = document.getElementById('modalShopSlug');
+      if (slugEl) slugEl.textContent = '/shop/' + currentShop.slug;
+      
+      const currentLogo = currentShop.logoUrl || '';
+      updateOwnerLogoDisplays(currentLogo);
+
+      const urlInput = document.getElementById('modalLogoUrlInput');
+      if (urlInput) urlInput.value = (currentLogo.startsWith('http') && !currentLogo.startsWith('data:')) ? currentLogo : '';
+      
+      const modal = document.getElementById('ownerProfileModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeOwnerProfileModal() {
+      const modal = document.getElementById('ownerProfileModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function selectPresetLogo(emoji) {
+      currentSelectedLogo = emoji;
+      updateOwnerLogoDisplays(emoji);
+      const urlInput = document.getElementById('modalLogoUrlInput');
+      if (urlInput) urlInput.value = '';
+    }
+
+    function handleLogoUrlInput(val) {
+      if (!val) return;
+      currentSelectedLogo = val.trim();
+      updateOwnerLogoDisplays(currentSelectedLogo);
+    }
+
+    function handleLogoFileSelect(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Please choose an image under 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        currentSelectedLogo = evt.target.result;
+        updateOwnerLogoDisplays(currentSelectedLogo);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function saveShopProfileAndLogo() {
+      const btn = document.getElementById('saveShopProfileBtn');
+      const origText = btn.textContent;
+      const newName = (document.getElementById('modalShopNameInput').value || '').trim();
+      if (!newName) {
+        alert('Please enter a shop name.');
+        return;
+      }
+
+      btn.textContent = 'Saving to Supabase...';
+      btn.disabled = true;
+
+      try {
+        const queryParam = activeShopSlug ? '?shop=' + encodeURIComponent(activeShopSlug) : '';
+        const res = await fetch('/api/owner/settings' + queryParam, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ 
+            name: newName,
+            logoUrl: currentSelectedLogo 
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (currentShop) {
+            currentShop.name = newName;
+            currentShop.logoUrl = currentSelectedLogo;
+          }
+          if (document.getElementById('headerShopName')) document.getElementById('headerShopName').textContent = newName;
+          if (document.getElementById('topOwnerName')) document.getElementById('topOwnerName').textContent = newName;
+          if (document.getElementById('welcomeGreeting')) document.getElementById('welcomeGreeting').textContent = 'Welcome back, ' + newName + '!';
+          
+          updateOwnerLogoDisplays(currentSelectedLogo);
+          closeOwnerProfileModal();
+
+          const alertBox = document.getElementById('settingsAlert');
+          if (alertBox) {
+            alertBox.className = 'rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 p-3.5 text-xs font-semibold text-center shadow-sm';
+            alertBox.textContent = '✓ Shop profile & logo saved to Supabase and synced live across customer passes!';
+            alertBox.classList.remove('hidden');
+            setTimeout(() => alertBox.classList.add('hidden'), 5000);
+          }
+        } else {
+          alert(data.message || 'Failed to save shop profile.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error while saving to Supabase.');
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------
+    // REVIEWS TAB VERIFIED STATE
+    // -------------------------------------------------------------
+    function updateReviewsTabState(googleUrl, instaUrl) {
+      const hasLinks = Boolean((googleUrl && googleUrl.trim()) || (instaUrl && instaUrl.trim()));
+      const statusBox = document.getElementById('reviewsStatusBox');
+      const statusIcon = document.getElementById('reviewsStatusIcon');
+      const statusText = document.getElementById('reviewsStatusText');
+      const statusPill = document.getElementById('reviewsStatusPill');
+      const saveBtn = document.getElementById('saveViewReviewsBtn');
+
+      if (hasLinks) {
+        if (statusBox) statusBox.className = 'p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-xs text-emerald-900 flex items-center justify-between';
+        if (statusIcon) statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+        if (statusText) statusText.innerHTML = '✓ Review links active & live on customer passes!';
+        if (statusPill) {
+          statusPill.className = 'text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+          statusPill.textContent = 'ACTIVE & LIVE';
+        }
+        if (saveBtn) saveBtn.textContent = 'Update Review Links →';
+      } else {
+        if (statusBox) statusBox.className = 'p-3.5 rounded-xl border border-gray-200 bg-gray-50 text-xs text-gray-600 flex items-center justify-between';
+        if (statusIcon) statusIcon.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+        if (statusText) statusText.textContent = 'Review links not configured yet. Add them below:';
+        if (statusPill) {
+          statusPill.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-600';
+          statusPill.textContent = 'NOT ADDED';
+        }
+        if (saveBtn) saveBtn.textContent = 'Save Review Links →';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // LIVE NOTIFICATIONS DROPDOWN & REAL-TIME CUSTOMER JOINS
+    // -------------------------------------------------------------
+    let allNotifications = [];
+
+    function toggleNotifications(e) {
+      if (e) e.stopPropagation();
+      const dd = document.getElementById('notifDropdown');
+      if (dd) {
+        dd.classList.toggle('hidden');
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('notifDropdown');
+      const bell = document.getElementById('notifBellBtn');
+      if (dd && !dd.classList.contains('hidden')) {
+        if (!dd.contains(e.target) && !bell.contains(e.target)) {
+          dd.classList.add('hidden');
+        }
+      }
+    });
+
+    function updateNotificationsList(recentActivity, customers) {
+      const notifList = document.getElementById('notifList');
+      const badge = document.getElementById('notifBadge');
+      const unreadPill = document.getElementById('notifUnreadCountPill');
+
+      const acts = recentActivity || [];
+      const custs = customers || [];
+
+      // Combine both sources: Customer Joins + Recent Activity
+      const combined = [];
+
+      // 1. Customer Registration / Joins
+      custs.forEach(c => {
+        const time = c.created_at || c.createdAt || c.last_stamp_at || c.lastStampAt || Date.now();
+        combined.push({
+          id: 'join_' + c.phone,
+          type: 'CUSTOMER_JOINED',
+          name: c.name || 'Member',
+          phone: c.phone,
+          timestamp: new Date(time).getTime(),
+          timeStr: formatRelativeTime(new Date(time).getTime()),
+          stamps: c.stamps || 0
+        });
+      });
+
+      // 2. Action History (Stamps + Rewards)
+      acts.forEach((a, idx) => {
+        const time = a.created_at || a.timestamp || Date.now();
+        const actionType = a.action_type || a.actionType;
+        combined.push({
+          id: 'act_' + (a.id || idx + '_' + time),
+          type: actionType,
+          name: a.customer_name || a.customerName || a.phone || 'Customer',
+          phone: a.phone || '',
+          timestamp: new Date(time).getTime(),
+          timeStr: formatRelativeTime(new Date(time).getTime()),
+          stamps: a.stampsAtPoint || 1
+        });
+      });
+
+      // Sort newest first
+      combined.sort((a, b) => b.timestamp - a.timestamp);
+
+      // Deduplicate
+      const unique = [];
+      const seenIds = new Set();
+      for (const item of combined) {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          unique.push(item);
+        }
+      }
+
+      allNotifications = unique.slice(0, 20);
+
+      // Count unread
+      let unreadCount = 0;
+      allNotifications.forEach(n => {
+        if (!seenActivityTimestamps.has(n.id)) unreadCount++;
+      });
+
+      if (badge) {
+        if (unreadCount > 0) {
+          badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
+
+      if (unreadPill) {
+        unreadPill.textContent = unreadCount + ' new';
+      }
+
+      if (notifList) {
+        if (allNotifications.length === 0) {
+          notifList.innerHTML = '<div class="py-8 text-center text-xs text-gray-400">No customers or activity yet. Customers will appear here as they register!</div>';
+          return;
+        }
+
+        notifList.innerHTML = allNotifications.map(n => {
+          const isUnread = !seenActivityTimestamps.has(n.id);
+          let icon = '👤';
+          let iconBg = 'bg-blue-100 text-blue-800';
+          let title = escapeHtml(n.name) + ' joined the loyalty program';
+          let sub = 'Registered pass (' + escapeHtml(n.phone) + ')';
+
+          if (n.type === 'REWARD_REDEEMED') {
+            icon = '🎁';
+            iconBg = 'bg-purple-100 text-purple-700';
+            title = escapeHtml(n.name) + ' redeemed a reward!';
+            sub = 'Completed loyalty card goal';
+          } else if (n.type === 'STAMP_ADDED') {
+            icon = '★';
+            iconBg = 'bg-amber-100 text-amber-800';
+            title = escapeHtml(n.name) + ' collected a stamp';
+            sub = n.stamps + ' stamps currently held';
+          }
+
+          return `
+            <div class="p-2.5 rounded-xl flex items-center justify-between gap-3 ${isUnread ? 'bg-amber-50/70 border border-amber-200/60' : 'hover:bg-gray-50'} transition-colors">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-8 h-8 rounded-full ${iconBg} flex items-center justify-center text-xs font-bold shrink-0">
+                  ${icon}
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-xs text-gray-900 truncate">${title}</div>
+                  <div class="text-[11px] text-gray-500 truncate">${sub}</div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="text-[10px] font-mono text-gray-400 block whitespace-nowrap">${n.timeStr}</span>
+                ${isUnread ? '<span class="inline-block w-2 h-2 rounded-full bg-amber-500 mt-1"></span>' : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function formatRelativeTime(ts) {
+      if (!ts) return '';
+      const diff = Math.floor((Date.now() - ts) / 1000);
+      if (diff < 60) return 'Just now';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+
+    function markAllNotificationsRead() {
+      allNotifications.forEach(n => {
+        seenActivityTimestamps.add(n.id);
+      });
+      localStorage.setItem('seen_activity_timestamps', JSON.stringify(Array.from(seenActivityTimestamps).slice(-100)));
+      updateNotificationsList([], cachedCustomers);
+    }
+
+  </script>
+
+  <!-- ======================================================== -->
+  <!-- OWNER PROFILE & SHOP LOGO MODAL                          -->
+  <!-- ======================================================== -->
+  <div id="ownerProfileModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 space-y-5 animate-in fade-in duration-150">
+      
+      <div class="flex items-center justify-between border-b pb-3">
+        <div class="flex items-center gap-2">
+          <span class="w-8 h-8 rounded-lg bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center font-bold text-sm">🏪</span>
+          <h3 class="text-sm font-extrabold text-gray-900">Edit Shop Profile & Logo</h3>
+        </div>
+        <button type="button" onclick="closeOwnerProfileModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">&times;</button>
+      </div>
+
+      <!-- Editable Shop Name Field -->
+      <div class="space-y-1.5">
+        <label for="modalShopNameInput" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+          Shop / Outlet Name
+        </label>
+        <input type="text" id="modalShopNameInput" required
+          placeholder="e.g. Sunrise Café"
+          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+        <div class="flex items-center justify-between text-[11px] text-gray-500 pt-0.5">
+          <span>Counter Kiosk Link:</span>
+          <span id="modalShopSlug" class="font-mono text-amber-600 font-bold">/shop/...</span>
+        </div>
+      </div>
+
+      <!-- Logo Preview & Customization -->
+      <div class="space-y-3 pt-1 border-t border-gray-100">
+        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+          Shop Logo / Avatar
+        </label>
+        
+        <div class="flex items-center gap-3.5">
+          <div id="modalLogoPreview" class="w-16 h-16 rounded-2xl bg-[#111113] border-2 border-amber-500 text-amber-500 flex items-center justify-center text-2xl font-bold shadow-md overflow-hidden shrink-0">
+            ☕
+          </div>
+          <div class="text-xs text-gray-500 space-y-1 min-w-0">
+            <p class="font-semibold text-gray-800 leading-tight">Shown on Customer Loyalty Cards & Counter QR.</p>
+            <p class="text-[11px] text-gray-400">Choose an icon preset or upload an image file.</p>
+          </div>
+        </div>
+
+        <!-- Quick Preset Emojis -->
+        <div class="space-y-1.5">
+          <span class="text-[11px] font-bold text-gray-500 block">Quick Icon Presets:</span>
+          <div class="flex flex-wrap gap-2" id="presetLogoButtons">
+            <button type="button" onclick="selectPresetLogo('☕')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">☕</button>
+            <button type="button" onclick="selectPresetLogo('🍵')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">🍵</button>
+            <button type="button" onclick="selectPresetLogo('✂️')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">✂️</button>
+            <button type="button" onclick="selectPresetLogo('🍔')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">🍔</button>
+            <button type="button" onclick="selectPresetLogo('🍕')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">🍕</button>
+            <button type="button" onclick="selectPresetLogo('🛍️')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">🛍️</button>
+            <button type="button" onclick="selectPresetLogo('⭐')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">⭐</button>
+            <button type="button" onclick="selectPresetLogo('🍰')" class="w-9 h-9 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50 text-base flex items-center justify-center transition-all">🍰</button>
+          </div>
+        </div>
+
+        <!-- Custom Image File Upload -->
+        <div class="space-y-1.5 pt-1">
+          <label class="text-[11px] font-bold text-gray-500 block">Upload Logo Image (PNG, JPG, SVG):</label>
+          <input type="file" id="modalLogoFileInput" accept="image/*" onchange="handleLogoFileSelect(event)"
+            class="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#fdf6e9] file:text-[#cb8926] hover:file:bg-[#faecd6] cursor-pointer">
+        </div>
+
+        <!-- Or Direct Image URL -->
+        <div class="space-y-1">
+          <input type="url" id="modalLogoUrlInput" placeholder="Or paste image URL (https://...)" oninput="handleLogoUrlInput(this.value)"
+            class="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-3 border-t">
+        <button type="button" onclick="closeOwnerProfileModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100">
+          Cancel
+        </button>
+        <button type="button" id="saveShopProfileBtn" onclick="saveShopProfileAndLogo()" class="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm">
+          Save Changes &rarr;
+        </button>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

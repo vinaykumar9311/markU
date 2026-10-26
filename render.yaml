@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: marku01-saas
+    runtime: node
+    plan: starter
+    region: singapore # Closest low-latency region for Indian and Asian merchants
+    buildCommand: npm install --production
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: APP_SECRET
+        generateValue: true # Render will automatically generate a secure 64-char key
+      - key: COOLDOWN_HOURS
+        value: 12
+      - key: QR_LIFETIME_MINUTES
+        value: 5
+      - key: FIREBASE_SERVICE_ACCOUNT_PATH
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: PUBLIC_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: PUBLIC_FIREBASE_APP_ID
+        sync: false

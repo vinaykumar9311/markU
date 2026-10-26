@@ -1,0 +1,9 @@
+.git
+.env*
+node_modules
+npm-debug.log*
+database.json
+tests
+.copilot-azure
+cloudflared.exe
+tunnel_url.txt
