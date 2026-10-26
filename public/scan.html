@@ -4,159 +4,182 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Collect Loyalty Stamp · MarkU</title>
-    <!-- Typography: Plus Jakarta Sans & JetBrains Mono -->
+  
+  <!-- Progressive Web App (PWA) Manifest & Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d0d0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MarkU">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <!-- Typography: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase SDK Compat for SMS OTP -->
+  <!-- Firebase SDK Compat for Google Authentication -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+
   <style>
     body { 
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
       -webkit-tap-highlight-color: transparent;
       -webkit-font-smoothing: antialiased;
     }
-    .font-mono {
-      font-family: 'JetBrains Mono', monospace;
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #e5a83b 0%, #cb8926 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(203, 137, 38, 0.35);
+      transition: all 0.2s ease;
     }
-    .otp-input {
-      letter-spacing: 0.35em;
-      font-feature-settings: "tnum";
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #edb449 0%, #d9932d 100%);
+      transform: translateY(-1px);
+    }
+
+    .dark-glow-bg {
+      background: radial-gradient(circle at 50% 15%, rgba(212, 154, 55, 0.12) 0%, rgba(13, 13, 14, 0.98) 65%, #0d0d0e 100%);
+    }
+
+    .glass-card {
+      background: rgba(20, 20, 24, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased selection:bg-slate-900 selection:text-white">
+<body class="dark-glow-bg bg-[#0d0d0e] text-white min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased selection:bg-amber-500 selection:text-white">
+
+  <!-- Ambient Golden Swirl Background Blur -->
+  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-amber-500/10 blur-[130px] pointer-events-none rounded-full"></div>
 
   <!-- Minimal Brand Header -->
-  <header class="w-full max-w-sm mx-auto flex items-center justify-between pt-1 pb-3">
-    <div class="flex items-center gap-2 min-w-0">
-      <span class="w-7 h-7 rounded-lg bg-slate-900 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">M</span>
-      <span class="font-bold text-sm text-slate-900 tracking-tight truncate">MarkU Stamp Gateway</span>
-    </div>
-    <span id="authBadge" class="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full shrink-0">
-      Counter Scan
+  <header class="w-full max-w-sm mx-auto flex items-center justify-between pt-2 pb-3 relative z-10">
+    <a href="/" class="flex items-center gap-0.5 shrink-0" title="MarkU">
+      <span class="text-xl font-black tracking-tight text-white">Mark</span>
+      <span class="text-xl font-black tracking-tight text-[#d99b3b] relative">
+        U
+        <svg class="w-3 h-1.5 absolute -top-1 right-0 text-[#d99b3b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M1 2C4 7 10 7 13 2" />
+        </svg>
+      </span>
+    </a>
+    <span class="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+      Single-Use QR
     </span>
   </header>
 
   <!-- Main Gate Container -->
-  <main class="w-full max-w-sm mx-auto my-auto space-y-4">
+  <main class="w-full max-w-sm mx-auto my-auto space-y-4 relative z-10">
 
-    <div id="statusAlert" class="hidden rounded-xl border p-3 text-xs font-semibold text-center transition-all shadow-xs"></div>
+    <div id="statusAlert" class="hidden rounded-xl border p-3.5 text-xs font-semibold text-center transition-all shadow-md"></div>
 
-    <!-- State A: Fast One-Tap Check-In (When already enrolled on this phone) -->
-    <div id="quickCheckInBox" class="hidden bg-white border border-slate-200 rounded-2xl p-6 shadow-xs text-center space-y-4">
-      <div class="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center mx-auto shadow-xs">
-        <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <!-- State A: Fast One-Tap Check-In (When already saved on this device) -->
+    <div id="quickCheckInBox" class="hidden glass-card rounded-3xl p-6 text-center space-y-4">
+      <div class="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto text-2xl font-bold shadow-md">
+        ★
       </div>
       <div>
-        <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+        <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
           Enrolled Member
         </span>
-        <h1 id="quickShopTitle" class="text-lg font-bold text-gray-900 mt-2">Checking In...</h1>
-        <p id="quickPhoneLabel" class="text-xs text-gray-500 font-mono mt-1">+91 ••••• •••••</p>
+        <h1 id="quickShopTitle" class="text-lg font-bold text-white mt-2">Ready to collect stamp!</h1>
+        <p id="quickMemberLabel" class="text-xs text-gray-400 font-mono mt-1">user@gmail.com</p>
       </div>
 
       <button type="button" id="quickClaimBtn" onclick="executeQuickClaim()"
-        class="w-full bg-slate-900 hover:bg-slate-800 active:bg-black text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-xs">
-        Collect Today's Stamp &rarr;
+        class="w-full btn-gold font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2">
+        <span>Collect Today's Stamp</span>
+        <span>&rarr;</span>
       </button>
 
       <div>
-        <button type="button" onclick="switchToManualPhone()" class="text-xs text-gray-400 hover:text-gray-600 underline">
-          Use a different mobile number
+        <button type="button" onclick="switchToManualAuth()" class="text-xs text-gray-400 hover:text-gray-200 underline">
+          Use a different email / account
         </button>
       </div>
     </div>
 
-    <!-- State B: Customer Phone & OTP Verification Form -->
-    <div id="registerBox" class="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+    <!-- State B: Customer Sign-In (Google & Email) -->
+    <div id="registerBox" class="glass-card rounded-3xl p-6 space-y-5">
       
       <div>
-        <span class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
-          Collect Stamp
-        </span>
-        <h1 id="regShopTitle" class="text-lg sm:text-xl font-bold text-gray-900 mt-2">Join Loyalty Rewards</h1>
-        <p id="regShopSub" class="text-xs text-gray-500 mt-1">Enter your enrolled mobile number to collect your stamp.</p>
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[10px] font-bold uppercase tracking-wider mb-2">
+          <span>Instant Counter Stamp</span>
+        </div>
+        <h1 id="regShopTitle" class="text-xl font-extrabold text-white">Join Loyalty Rewards</h1>
+        <p id="regShopSub" class="text-xs text-gray-400 mt-1">Sign in with Google to collect your stamp in 1 tap.</p>
       </div>
 
-      <div id="recaptcha-container"></div>
+      <!-- 1. Google 1-Tap Sign-In Button (Primary & Free) -->
+      <div class="space-y-3">
+        <button type="button" id="googleClaimBtn" onclick="handleGoogleClaim()"
+          class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-3">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span id="googleBtnText">1-Tap Google Sign-In & Stamp</span>
+        </button>
 
-      <form id="regForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
-        
-        <!-- Step 1: Mobile Number & Name -->
-        <div id="phoneStep" class="space-y-3.5">
-          <div>
-            <label for="regPhone" class="block text-xs font-semibold text-gray-700 mb-1">Mobile Number</label>
-            <input type="tel" id="regPhone" required placeholder="+919876543210"
-              class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-            <p class="text-[11px] text-gray-400 mt-1">We will send a 6-digit OTP code to verify your enrolled pass.</p>
-          </div>
+        <!-- Divider -->
+        <div class="relative flex items-center justify-center pt-2">
+          <div class="border-t border-gray-800 w-full"></div>
+          <span class="bg-[#141418] px-3 text-[10px] font-bold uppercase tracking-wider text-gray-500 absolute">or enter email / phone</span>
+        </div>
+      </div>
 
-          <div>
-            <label for="regName" class="block text-xs font-semibold text-gray-700 mb-1">Your Name (Optional)</label>
-            <input type="text" id="regName" placeholder="e.g. Alex"
-              class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-          </div>
+      <!-- 2. Direct Email / Phone Form (No SMS needed) -->
+      <form id="regForm" onsubmit="handleDirectClaim(event)" class="space-y-3.5 pt-1">
+        <div>
+          <label for="regEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Email or Mobile</label>
+          <input type="text" id="regEmail" required placeholder="you@gmail.com or 9876543210"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
         </div>
 
-        <!-- Step 2: 6-Digit OTP Code -->
-        <div id="otpStep" class="hidden space-y-3.5">
-          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-900 flex justify-between items-center">
-            <div>
-              <span class="text-indigo-500 block text-[10px] font-semibold uppercase">Code sent to</span>
-              <span id="displayPhone" class="font-mono font-bold text-xs">+91 ••••• •••••</span>
-            </div>
-            <button type="button" onclick="backToPhoneStep()" class="text-xs font-semibold text-indigo-600 hover:underline">
-              Change
-            </button>
-          </div>
-
-
-          <div>
-            <label for="regOtp" class="block text-xs font-semibold text-gray-700 mb-1">6-Digit Verification Code</label>
-            <input type="text" id="regOtp" maxlength="6" inputmode="numeric" placeholder="123456"
-              class="otp-input w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-center text-lg font-bold font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-          </div>
-
-          <div class="flex justify-between items-center text-xs">
-            <span class="text-gray-400">Didn't receive SMS?</span>
-            <button type="button" onclick="resendOtp()" class="text-indigo-600 font-semibold hover:underline">
-              Resend Code
-            </button>
-          </div>
+        <div>
+          <label for="regName" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Your Name (Optional)</label>
+          <input type="text" id="regName" placeholder="e.g. Rahul"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
         </div>
 
         <button type="submit" id="mainSubmitBtn"
-          class="w-full bg-slate-900 hover:bg-slate-800 active:bg-black text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-xs">
-          Send Verification Code (OTP) &rarr;
+          class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
+          Collect Stamp &rarr;
         </button>
-
       </form>
 
     </div>
 
-    <!-- Error Fallback Box (If QR expired or invalid) -->
-    <div id="errorFallbackBox" class="hidden bg-white border border-slate-200 rounded-2xl p-6 shadow-xs text-center space-y-4">
-      <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-xl">
+    <!-- State C: QR Expired or Already Used Fallback -->
+    <div id="errorFallbackBox" class="hidden glass-card rounded-3xl p-6 text-center space-y-4">
+      <div class="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto text-2xl font-bold">
         ⏱
       </div>
       <div>
-        <h2 class="text-base font-bold text-gray-900">QR Code Expired</h2>
-        <p class="text-xs text-gray-500 mt-1">This rolling counter QR has refreshed. Please scan the current code on the counter screen.</p>
+        <h2 class="text-base font-extrabold text-white">QR Code Expired or Already Claimed</h2>
+        <p class="text-xs text-gray-400 mt-1">Each QR code is strictly valid for one customer scan. The counter screen has already updated with a fresh code for you!</p>
       </div>
       <a id="openPassFallbackBtn" href="/card.html"
-        class="inline-block w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-xl text-xs transition-colors">
-        View My Existing Card &rarr;
+        class="inline-block w-full bg-white/10 hover:bg-white/15 text-white font-bold py-3 rounded-xl text-xs transition-colors">
+        View My Saved Loyalty Card &rarr;
       </a>
     </div>
 
   </main>
 
-  <footer class="w-full max-w-sm mx-auto text-center text-xs text-gray-400 pb-2">
-    MarkU Anti-Cheat Digital Loyalty System
+  <footer class="w-full max-w-sm mx-auto text-center text-xs text-gray-500 pb-2 relative z-10">
+    MarkU Single-Use Anti-Cheat Digital Loyalty
   </footer>
 
   <script>
@@ -165,49 +188,46 @@
     const shopSlug = urlParams.get('shop') || 'default';
 
     let firebaseConfig = null;
-    let confirmationResult = null;
-    let recaptchaVerifier = null;
-    let isOtpStep = false;
-    let targetPhone = '';
-    let customerName = '';
+    let savedIdentifier = '';
 
     window.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('openPassFallbackBtn').href = `/card.html?shop=${encodeURIComponent(shopSlug)}`;
 
       if (!token) {
-        showError('No QR token detected. Please scan the live counter code with your phone camera.');
+        showError('No QR token detected. Please scan the live counter screen code.');
         document.getElementById('registerBox').classList.add('hidden');
         document.getElementById('errorFallbackBox').classList.remove('hidden');
         return;
       }
 
-      // Initialize Firebase Phone Auth client if configured
+      // Initialize Firebase Google Auth
       try {
         const res = await fetch('/api/config/firebase');
         firebaseConfig = await res.json();
         if (firebaseConfig.isConfigured && window.firebase) {
-          firebase.initializeApp(firebaseConfig);
-          recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-          document.getElementById('authBadge').textContent = 'SMS OTP Active';
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
         }
-      } catch (err) {}
+      } catch (err) {
+        console.warn('Firebase config note:', err);
+      }
 
-      // Load shop information
       await loadShopInfo();
 
-      // Check for saved session on this device
-      const savedPhone = localStorage.getItem('loyalty_phone');
+      // Check for saved member on this device
+      const savedEmail = localStorage.getItem('loyalty_email') || localStorage.getItem('loyalty_phone');
       const savedToken = localStorage.getItem('loyalty_token');
 
-      if (savedPhone && savedToken) {
+      if (savedEmail && savedToken) {
+        savedIdentifier = savedEmail;
         document.getElementById('registerBox').classList.add('hidden');
         document.getElementById('quickCheckInBox').classList.remove('hidden');
-        document.getElementById('quickPhoneLabel').textContent = savedPhone;
-        targetPhone = savedPhone;
-        // Auto-claim immediately without extra button taps
+        document.getElementById('quickMemberLabel').textContent = savedEmail;
+        // Auto-claim immediately for quick checkout!
         executeQuickClaim();
-      } else if (savedPhone) {
-        document.getElementById('regPhone').value = savedPhone;
+      } else if (savedEmail) {
+        document.getElementById('regEmail').value = savedEmail;
       }
     });
 
@@ -220,17 +240,98 @@
           const target = data.shop.stampsTarget || 10;
           const reward = data.shop.rewardDescription || '1 Free Item';
 
-          document.getElementById('regShopTitle').textContent = `Register or Sign In at ${shopName}`;
-          document.getElementById('regShopSub').textContent = `${target} stamps = ${reward}. Authenticate via mobile OTP to collect stamp (7-hour anti-cheat cooldown starts).`;
+          document.getElementById('regShopTitle').textContent = `Welcome to ${shopName}`;
+          document.getElementById('regShopSub').textContent = `${target} stamps unlock ${reward}. Collect your stamp below.`;
           document.getElementById('quickShopTitle').textContent = `Check In at ${shopName}`;
         }
       } catch (e) {}
     }
 
+    // 1. Google 1-Tap Claim Handler (100% Free Firebase Auth)
+    async function handleGoogleClaim() {
+      const btn = document.getElementById('googleClaimBtn');
+      const label = document.getElementById('googleBtnText');
+      const originalText = label.textContent;
+      btn.disabled = true;
+      label.textContent = 'Authenticating with Google...';
+
+      try {
+        if (!firebaseConfig || !firebaseConfig.isConfigured || !window.firebase) {
+          throw new Error('Google Sign-In is initializing. Please enter email or phone below.');
+        }
+
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        const idToken = await result.user.getIdToken();
+        const email = result.user.email;
+        const name = result.user.displayName || '';
+
+        label.textContent = 'Verifying Single-Use QR...';
+
+        const res = await fetch('/api/claim-stamp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopSlug,
+            token,
+            firebaseIdToken: idToken,
+            phone: email,
+            name
+          })
+        });
+
+        const data = await res.json();
+        handleClaimResponse(data, email, name);
+      } catch (err) {
+        console.error('Google claim error:', err);
+        showError(err.message || 'Failed to authenticate. You can enter your email below.');
+        btn.disabled = false;
+        label.textContent = originalText;
+      }
+    }
+
+    // 2. Direct Email / Phone Claim
+    async function handleDirectClaim(e) {
+      e.preventDefault();
+      const input = document.getElementById('regEmail').value.trim();
+      const name = document.getElementById('regName').value.trim();
+
+      if (!input) {
+        showError('Please enter your email or mobile number.');
+        return;
+      }
+
+      const btn = document.getElementById('mainSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Collecting Stamp...';
+
+      try {
+        const res = await fetch('/api/claim-stamp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopSlug,
+            token,
+            phone: input,
+            name
+          })
+        });
+
+        const data = await res.json();
+        handleClaimResponse(data, input, name);
+      } catch (err) {
+        showError('Network error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Collect Stamp →';
+      }
+    }
+
+    // 3. Quick Claim for Already Saved Members
     async function executeQuickClaim() {
       const btn = document.getElementById('quickClaimBtn');
       btn.disabled = true;
-      btn.textContent = 'Collecting Stamp...';
+      btn.innerHTML = '<span>Collecting Stamp...</span>';
 
       const savedToken = localStorage.getItem('loyalty_token');
       try {
@@ -241,177 +342,54 @@
             shopSlug,
             token,
             verificationToken: savedToken,
-            phone: targetPhone
+            phone: savedIdentifier
           })
         });
         const data = await res.json();
-
-        if (data.success) {
-          if (data.verificationToken) localStorage.setItem('loyalty_token', data.verificationToken);
-          window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&claimed=1`;
-        } else if (data.code === 'COOLDOWN_ACTIVE') {
-          window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&cooldown=1`;
-        } else if (data.code === 'QR_ALREADY_USED' || data.code === 'EXPIRED_QR') {
-          document.getElementById('quickCheckInBox').classList.add('hidden');
-          document.getElementById('errorFallbackBox').classList.remove('hidden');
-        } else {
-          // Fallback to fresh OTP verification
-          switchToManualPhone();
-          showError(data.message || 'Please verify your number with OTP.');
-        }
+        handleClaimResponse(data, savedIdentifier, '');
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = "Collect Today's Stamp →";
+        btn.innerHTML = "<span>Collect Today's Stamp</span> <span>&rarr;</span>";
         showError('Network error. Please try again.');
       }
     }
 
-    function switchToManualPhone() {
+    function handleClaimResponse(data, identifier, name) {
+      if (data.success) {
+        localStorage.setItem('loyalty_email', identifier);
+        localStorage.setItem('loyalty_phone', identifier);
+        if (data.verificationToken) localStorage.setItem('loyalty_token', data.verificationToken);
+        if (name) localStorage.setItem('loyalty_name', name);
+
+        // Redirect to live card with celebratory trigger
+        window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&claimed=1`;
+      } else if (data.code === 'COOLDOWN_ACTIVE') {
+        localStorage.setItem('loyalty_email', identifier);
+        if (data.verificationToken) localStorage.setItem('loyalty_token', data.verificationToken);
+        window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&cooldown=1`;
+      } else if (data.code === 'QR_ALREADY_USED' || data.code === 'EXPIRED_QR') {
+        document.getElementById('quickCheckInBox').classList.add('hidden');
+        document.getElementById('registerBox').classList.add('hidden');
+        document.getElementById('errorFallbackBox').classList.remove('hidden');
+      } else {
+        showError(data.message || 'Could not claim stamp.');
+        const btn = document.getElementById('mainSubmitBtn');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Collect Stamp →';
+        }
+      }
+    }
+
+    function switchToManualAuth() {
       document.getElementById('quickCheckInBox').classList.add('hidden');
       document.getElementById('registerBox').classList.remove('hidden');
-      backToPhoneStep();
-    }
-
-    async function handleFormSubmit(e) {
-      e.preventDefault();
-      if (!isOtpStep) {
-        await handleSendOtp();
-      } else {
-        await handleVerifyOtpAndClaim();
-      }
-    }
-
-    function backToPhoneStep() {
-      isOtpStep = false;
-      document.getElementById('phoneStep').classList.remove('hidden');
-      document.getElementById('otpStep').classList.add('hidden');
-      document.getElementById('mainSubmitBtn').textContent = 'Send Verification Code (OTP) →';
-      document.getElementById('statusAlert').classList.add('hidden');
-    }
-
-    async function handleSendOtp() {
-      const raw = document.getElementById('regPhone').value.trim();
-      customerName = document.getElementById('regName').value.trim();
-
-      let cleaned = raw.replace(/[^0-9+]/g, '');
-      if (!cleaned.startsWith('+')) {
-        if (cleaned.length === 10) cleaned = '+91' + cleaned;
-        else cleaned = '+' + cleaned;
-      }
-
-      if (cleaned.length < 10) {
-        showError('Please enter a valid 10-digit mobile number.');
-        return;
-      }
-
-      targetPhone = cleaned;
-      const btn = document.getElementById('mainSubmitBtn');
-      btn.disabled = true;
-      btn.textContent = 'Sending Verification Code...';
-
-      // Firebase Phone Auth SMS OTP
-      if (firebaseConfig && firebaseConfig.isConfigured && window.firebase && recaptchaVerifier) {
-        try {
-          confirmationResult = await firebase.auth().signInWithPhoneNumber(targetPhone, recaptchaVerifier);
-          transitionToOtpStep(targetPhone);
-          return;
-        } catch (fbErr) {
-          console.error('[Firebase SMS Error]', fbErr);
-          showError('Failed to send verification SMS: ' + (fbErr.message || 'Check phone number format'));
-          btn.disabled = false;
-          btn.textContent = 'Send Verification Code (OTP) →';
-          if (window.grecaptcha && recaptchaVerifier) {
-            try { recaptchaVerifier.render().then(w => grecaptcha.reset(w)); } catch (e) {}
-          }
-          return;
-        }
-      }
-
-      showError('SMS OTP service is currently not configured or loading. Please contact the store.');
-      btn.disabled = false;
-      btn.textContent = 'Send Verification Code (OTP) →';
-    }
-
-    function transitionToOtpStep(phone) {
-      isOtpStep = true;
-      document.getElementById('phoneStep').classList.add('hidden');
-      document.getElementById('otpStep').classList.remove('hidden');
-      document.getElementById('displayPhone').textContent = phone;
-      document.getElementById('mainSubmitBtn').disabled = false;
-      document.getElementById('mainSubmitBtn').textContent = 'Verify OTP & Collect Stamp →';
-      document.getElementById('regOtp').focus();
-    }
-
-    async function resendOtp() {
-      await handleSendOtp();
-    }
-
-    async function handleVerifyOtpAndClaim() {
-      const otp = document.getElementById('regOtp').value.trim();
-      if (!otp || otp.length < 4) {
-        showError('Please enter the 6-digit verification code.');
-        return;
-      }
-
-      const btn = document.getElementById('mainSubmitBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying & Stamping...';
-
-      let firebaseIdToken = null;
-      if (confirmationResult) {
-        try {
-          const userCredential = await confirmationResult.confirm(otp);
-          firebaseIdToken = await userCredential.user.getIdToken();
-        } catch (e) {
-          console.warn('[Firebase] Confirm fallback:', e.message);
-        }
-      }
-
-      try {
-        const claimPayload = {
-          shopSlug,
-          token,
-          phone: targetPhone,
-          otp,
-          name: customerName,
-          firebaseIdToken
-        };
-
-        const claimRes = await fetch('/api/claim-stamp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(claimPayload)
-        });
-        const claimData = await claimRes.json();
-
-        if (claimData.success) {
-          localStorage.setItem('loyalty_phone', targetPhone);
-          if (claimData.verificationToken) {
-            localStorage.setItem('loyalty_token', claimData.verificationToken);
-          }
-          if (customerName) localStorage.setItem('loyalty_name', customerName);
-
-          window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&claimed=1`;
-        } else if (claimData.code === 'COOLDOWN_ACTIVE') {
-          localStorage.setItem('loyalty_phone', targetPhone);
-          if (claimData.verificationToken) localStorage.setItem('loyalty_token', claimData.verificationToken);
-          window.location.href = `/card.html?shop=${encodeURIComponent(shopSlug)}&cooldown=1`;
-        } else {
-          showError(claimData.message || 'Could not verify stamp.');
-          btn.disabled = false;
-          btn.textContent = 'Verify OTP & Collect Stamp →';
-        }
-      } catch (err) {
-        showError('Connection error. Please try again.');
-        btn.disabled = false;
-        btn.textContent = 'Verify OTP & Collect Stamp →';
-      }
     }
 
     function showError(msg) {
       const alert = document.getElementById('statusAlert');
       alert.textContent = msg;
-      alert.className = 'rounded-xl border p-3 text-xs font-semibold text-center bg-red-50 border-red-200 text-red-800';
+      alert.className = 'rounded-xl border p-3.5 text-xs font-semibold text-center bg-red-950/60 border-red-500/40 text-red-200 shadow-md';
       alert.classList.remove('hidden');
     }
   </script>

@@ -219,7 +219,9 @@ async function verifyFirebaseTokenWithPublicKeys(idToken) {
     return {
       success: true,
       uid: payload.sub,
-      phone: payload.phone_number || null
+      phone: payload.phone_number || null,
+      email: payload.email || null,
+      name: payload.name || null
     };
   } catch (err) {
     return { success: false, reason: `Token verification error: ${err.message}` };
@@ -230,7 +232,13 @@ async function verifyFirebaseToken(idToken) {
   if (firebaseInitialized && firebaseAuth) {
     try {
       const decoded = await firebaseAuth.verifyIdToken(idToken);
-      return { success: true, uid: decoded.uid, phone: decoded.phone_number || null };
+      return {
+        success: true,
+        uid: decoded.uid,
+        phone: decoded.phone_number || null,
+        email: decoded.email || null,
+        name: decoded.name || null
+      };
     } catch (err) {
       console.warn('[Firebase] Admin SDK verification failed, attempting public key verification:', err.message);
     }
@@ -337,20 +345,21 @@ async function resolveShopBySlug(rawSlug) {
   return shop;
 }
 
-// Dynamic QR Token Helpers per Shop
+// Dynamic Single-Use QR Token Helpers per Shop
 function generateShopQrToken(shopSecret) {
   const now = Date.now();
-  const windowStart = Math.floor(now / QR_LIFETIME_MS) * QR_LIFETIME_MS;
+  const nonce = crypto.randomBytes(4).toString('hex');
+  const payload = `${now}_${nonce}`;
   const hash = crypto.createHmac('sha256', shopSecret || GLOBAL_SECRET)
-    .update(windowStart.toString())
+    .update(payload)
     .digest('hex')
     .slice(0, 16);
   
-  const expiresAt = windowStart + QR_LIFETIME_MS;
+  const expiresAt = now + QR_LIFETIME_MS;
   return {
-    token: `${windowStart}.${hash}`,
+    token: `${payload}.${hash}`,
     expiresAt,
-    remainingSeconds: Math.max(0, Math.floor((expiresAt - now) / 1000))
+    remainingSeconds: Math.floor(QR_LIFETIME_MS / 1000)
   };
 }
 
@@ -359,12 +368,13 @@ function validateShopQrToken(token, shopSecret) {
   const parts = token.split('.');
   if (parts.length !== 2) return { valid: false, reason: 'Malformed token' };
 
-  const [windowStartStr, clientHash] = parts;
-  const windowStart = parseInt(windowStartStr, 10);
-  if (isNaN(windowStart)) return { valid: false, reason: 'Invalid timestamp' };
+  const [payload, clientHash] = parts;
+  const timestampStr = payload.split('_')[0];
+  const timestamp = parseInt(timestampStr, 10);
+  if (isNaN(timestamp)) return { valid: false, reason: 'Invalid timestamp' };
 
   const expectedHash = crypto.createHmac('sha256', shopSecret || GLOBAL_SECRET)
-    .update(windowStartStr)
+    .update(payload)
     .digest('hex')
     .slice(0, 16);
 
@@ -373,10 +383,10 @@ function validateShopQrToken(token, shopSecret) {
   }
 
   const now = Date.now();
-  if (now > windowStart + QR_LIFETIME_MS + 10000) {
+  if (now > timestamp + QR_LIFETIME_MS + 10000) {
     return { valid: false, reason: 'QR Code expired (>5 minutes). Screenshots are rejected. Scan live counter code.' };
   }
-  return { valid: true, windowStart };
+  return { valid: true, windowStart: timestamp };
 }
 
 function getPublicTunnelUrl() {
@@ -535,6 +545,7 @@ app.post('/api/owner/register', async (req, res) => {
       const token = sessionToken || signOwnerToken(userId, ownerEmail, verifiedPhone);
 
       // 2. Insert into shops table
+      const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
       const { data: shop, error: shopErr } = await supabase
         .from('shops')
         .insert({
@@ -544,7 +555,10 @@ app.post('/api/owner/register', async (req, res) => {
           reward_description: rewardDescription?.trim() || '1 Free Item',
           cooldown_hours: cooldown,
           stamps_target: targetStamps,
-          secret_key: shopSecret
+          secret_key: shopSecret,
+          subscription_plan: 'trial',
+          subscription_status: 'active',
+          subscription_ends_at: trialEndsAt
         })
         .select()
         .single();
@@ -769,6 +783,229 @@ app.post('/api/owner/login', async (req, res) => {
     token: signOwnerToken(owner.id, cleanEmail),
     shop: shop ? { id: shop.id, name: shop.name, slug: shop.slug, rewardDescription: shop.rewardDescription, cooldownHours: shop.cooldownHours } : null
   });
+});
+
+// --------------------------------------------------------------------
+// GOOGLE AUTH FOR SHOP OWNERS (100% Free Firebase Google Auth)
+// --------------------------------------------------------------------
+app.post('/api/owner/google-auth', async (req, res) => {
+  const { firebaseIdToken, shopName, slug } = req.body;
+  if (!firebaseIdToken) {
+    return res.status(400).json({ success: false, message: 'Missing Google ID token.' });
+  }
+
+  const authResult = await verifyFirebaseToken(firebaseIdToken);
+  if (!authResult.success || !authResult.email) {
+    return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (authResult.reason || 'Invalid token') });
+  }
+
+  const cleanEmail = authResult.email.trim().toLowerCase();
+  let owner = null;
+  let shop = null;
+
+  if (supabase) {
+    try {
+      const { data: existingOwner } = await supabase.from('owners').select('*').eq('email', cleanEmail).maybeSingle();
+      if (existingOwner) owner = existingOwner;
+      if (owner) {
+        const { data: ownerShop } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
+        if (ownerShop) shop = ownerShop;
+      }
+    } catch (e) {}
+  }
+
+  if (!owner) {
+    const db = loadLocalDb();
+    if (db && db.owners && db.owners[cleanEmail]) {
+      owner = db.owners[cleanEmail];
+      if (owner.shopSlug && db.shops[owner.shopSlug]) shop = db.shops[owner.shopSlug];
+    }
+  }
+
+  // 1. If owner already exists, sign them in immediately
+  if (owner && shop) {
+    const token = signOwnerToken(owner.id, cleanEmail, owner.phone || null);
+    return res.json({
+      success: true,
+      token,
+      owner: { id: owner.id, email: owner.email, phone: owner.phone },
+      shop: { id: shop.id, name: shop.name, slug: shop.slug, rewardDescription: shop.reward_description || shop.rewardDescription },
+      isNew: false
+    });
+  }
+
+  // 2. If new owner and shop name is provided, register them automatically with 7-day free trial!
+  if (shopName && shopName.trim()) {
+    const ownerId = crypto.randomUUID();
+    const finalSlug = (slug && slug.trim()) ? slug.trim().toLowerCase() : shopName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const shopSecret = crypto.randomBytes(32).toString('hex');
+    const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+
+    const newShop = {
+      id: crypto.randomUUID(),
+      owner_id: ownerId,
+      name: shopName.trim(),
+      slug: finalSlug,
+      stamps_target: 10,
+      reward_description: '1 Free Item',
+      cooldown_hours: 12,
+      secret_key: shopSecret,
+      subscription_plan: 'trial',
+      subscription_status: 'active',
+      subscription_ends_at: trialEndsAt
+    };
+
+    if (supabase) {
+      try {
+        await supabase.from('owners').insert({ id: ownerId, email: cleanEmail, phone: authResult.phone || null, full_name: authResult.name || '' });
+        const { data: createdShop, error: shopErr } = await supabase.from('shops').insert(newShop).select().single();
+        if (createdShop) shop = createdShop;
+      } catch (err) {
+        console.error('[GoogleAuth] Supabase error:', err);
+      }
+    }
+
+    const db = loadLocalDb();
+    db.owners[cleanEmail] = { id: ownerId, email: cleanEmail, phone: authResult.phone || null, shopSlug: finalSlug };
+    db.shops[finalSlug] = newShop;
+    saveLocalDb(db);
+
+    const token = signOwnerToken(ownerId, cleanEmail, authResult.phone || null);
+    return res.json({
+      success: true,
+      token,
+      owner: { id: ownerId, email: cleanEmail, phone: authResult.phone || null },
+      shop: shop || newShop,
+      isNew: true
+    });
+  }
+
+  // 3. New owner needs to provide their shop name
+  return res.json({
+    success: true,
+    needsShop: true,
+    email: cleanEmail,
+    name: authResult.name || ''
+  });
+});
+
+// --------------------------------------------------------------------
+// OWNER SUBSCRIPTION & BILLING ENDPOINTS
+// --------------------------------------------------------------------
+app.get('/api/owner/subscription', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authorization required.' });
+  }
+  const verifiedToken = verifyOwnerToken(authHeader.split(' ')[1]);
+  if (!verifiedToken) return res.status(401).json({ success: false, message: 'Invalid or expired session.' });
+
+  let shop = null;
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('shops').select('*').eq('owner_id', verifiedToken.ownerId).maybeSingle();
+      if (data) shop = data;
+    } catch (e) {}
+  }
+  if (!shop) {
+    const db = loadLocalDb();
+    const owner = db.owners[verifiedToken.email];
+    if (owner && owner.shopSlug) shop = db.shops[owner.shopSlug];
+  }
+
+  if (!shop) return res.status(404).json({ success: false, message: 'Shop profile not found.' });
+
+  const endsAt = shop.subscription_ends_at || shop.subscriptionEndsAt || new Date(Date.now() + 7 * 86400000).toISOString();
+  const endsMs = new Date(endsAt).getTime();
+  const nowMs = Date.now();
+  const diffDays = Math.max(0, Math.ceil((endsMs - nowMs) / 86400000));
+  const isActive = endsMs > nowMs;
+
+  return res.json({
+    success: true,
+    subscription: {
+      plan: shop.subscription_plan || shop.subscriptionPlan || 'trial',
+      status: isActive ? 'active' : 'expired',
+      endsAt,
+      daysRemaining: diffDays,
+      pricing: {
+        trial: { price: 0, days: 7, label: '1 Week Free Trial' },
+        monthly: { price: 149, days: 30, label: 'Pro Monthly (₹149/mo)', link: process.env.PAYMENT_LINK_MONTHLY || 'https://rzp.io/l/marku-monthly' },
+        yearly: { price: 999, days: 365, label: 'Growth Annual (₹999/yr)', link: process.env.PAYMENT_LINK_YEARLY || 'https://rzp.io/l/marku-yearly' }
+      },
+      supportWhatsApp: process.env.SUPPORT_WHATSAPP_NUMBER || '919311594509'
+    }
+  });
+});
+
+app.post('/api/owner/subscription/select', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Authorization required.' });
+  }
+  const verifiedToken = verifyOwnerToken(authHeader.split(' ')[1]);
+  if (!verifiedToken) return res.status(401).json({ success: false, message: 'Invalid or expired session.' });
+
+  const { plan, paymentReference } = req.body;
+  if (!['trial', 'monthly', 'yearly'].includes(plan)) {
+    return res.status(400).json({ success: false, message: 'Invalid plan selected.' });
+  }
+
+  let durationDays = 7;
+  if (plan === 'monthly') durationDays = 30;
+  if (plan === 'yearly') durationDays = 365;
+
+  const newEndsAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+
+  if (supabase) {
+    try {
+      await supabase.from('shops').update({
+        subscription_plan: plan,
+        subscription_status: 'active',
+        subscription_ends_at: newEndsAt,
+        payment_reference: paymentReference || ''
+      }).eq('owner_id', verifiedToken.ownerId);
+    } catch (e) {}
+  }
+
+  const db = loadLocalDb();
+  const owner = db.owners[verifiedToken.email];
+  if (owner && owner.shopSlug && db.shops[owner.shopSlug]) {
+    db.shops[owner.shopSlug].subscriptionPlan = plan;
+    db.shops[owner.shopSlug].subscriptionStatus = 'active';
+    db.shops[owner.shopSlug].subscriptionEndsAt = newEndsAt;
+    saveLocalDb(db);
+  }
+
+  return res.json({
+    success: true,
+    message: `Plan updated to ${plan}! Valid for ${durationDays} days.`,
+    plan,
+    endsAt: newEndsAt,
+    daysRemaining: durationDays
+  });
+});
+
+// --------------------------------------------------------------------
+// KIOSK REAL-TIME QR STATUS (STRICT 1-CUSTOMER-PER-QR AUTO REFRESH)
+// --------------------------------------------------------------------
+app.get('/api/shop/:slug/qr-status', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.json({ success: true, used: false });
+
+  let isUsed = false;
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('used_tokens').select('token').eq('token', token).maybeSingle();
+      if (data) isUsed = true;
+    } catch (e) {}
+  }
+  if (!isUsed) {
+    const db = loadLocalDb();
+    if (db && db.usedTokens && db.usedTokens[token]) isUsed = true;
+  }
+
+  return res.json({ success: true, used: isUsed });
 });
 
 // Protected Owner Dashboard Data (Row-Level Isolated Data Access)
@@ -1569,31 +1806,37 @@ app.post('/api/claim-stamp', async (req, res) => {
     return res.status(404).json({ success: false, message: 'Shop not found.' });
   }
 
-  // 2. Validate Customer Identity (Firebase token or signed session token)
-  let verifiedPhone = null;
+  // 2. Validate Customer Identity (Google Auth token, Firebase token, or signed session token)
+  let customerIdentifier = null;
+  let customerName = name ? name.trim() : '';
 
-  if (firebaseIdToken && firebaseInitialized) {
+  if (firebaseIdToken) {
     const authResult = await verifyFirebaseToken(firebaseIdToken);
-    if (!authResult.success) return res.status(401).json({ success: false, message: 'Invalid phone OTP verification.' });
-    verifiedPhone = normalizePhoneNumber(authResult.phone);
+    if (!authResult.success) {
+      return res.status(401).json({ success: false, message: 'Invalid authentication: ' + (authResult.reason || 'Token invalid') });
+    }
+    customerIdentifier = authResult.email ? authResult.email.trim().toLowerCase() : (authResult.phone ? normalizePhoneNumber(authResult.phone) : authResult.uid);
+    if (!customerName && authResult.name) customerName = authResult.name.trim();
   } else if (verificationToken) {
     const tokenPayload = verifyCustomerOtpToken(verificationToken);
     if (tokenPayload) {
-      verifiedPhone = normalizePhoneNumber(tokenPayload.phone);
+      customerIdentifier = tokenPayload.phone;
     }
+  } else if (phone && phone.trim()) {
+    customerIdentifier = normalizePhoneNumber(phone);
   }
 
-  if (!verifiedPhone) {
+  if (!customerIdentifier) {
     return res.status(401).json({
       success: false,
       code: 'VERIFICATION_REQUIRED',
-      message: 'Mobile OTP verification required. Please verify your phone number before collecting your stamp.'
+      message: 'Sign-in required. Please authenticate with Google or a verified account before collecting your stamp.'
     });
   }
 
-  const sessionToken = signCustomerOtpToken(verifiedPhone);
+  const sessionToken = signCustomerOtpToken(customerIdentifier);
 
-  // 3. Validate Dynamic 5-min QR Token using this shop's secret key
+  // 3. Validate Dynamic Single-Use QR Token using this shop's secret key
   const shopSecret = shop.secret_key || shop.secretKey || GLOBAL_SECRET;
   const qrCheck = validateShopQrToken(token, shopSecret);
   if (!qrCheck.valid) return res.status(403).json({ success: false, code: 'EXPIRED_QR', message: qrCheck.reason });
@@ -1611,9 +1854,9 @@ app.post('/api/claim-stamp', async (req, res) => {
       // 1. Try atomic database RPC (safe from race conditions & double-spend)
       const { data: rpcResult, error: rpcErr } = await supabase.rpc('claim_stamp_atomic', {
         p_shop_id: shop.id,
-        p_phone: verifiedPhone,
+        p_phone: customerIdentifier,
         p_token: token,
-        p_customer_name: name?.trim() || '',
+        p_customer_name: customerName || '',
         p_cooldown_hours: cooldownHours,
         p_stamps_target: shop.stamps_target || 10
       });
@@ -1647,22 +1890,24 @@ app.post('/api/claim-stamp', async (req, res) => {
         // Mirror to local persistent cache
         try {
           const db = loadLocalDb();
-          const cardKey = `${shop.slug}_${verifiedPhone}`;
+          const cardKey = `${shop.slug}_${customerIdentifier}`;
           db.customerCards[cardKey] = {
             shopSlug: shop.slug,
             shopId: shop.id,
-            phone: verifiedPhone,
-            name: card.name || name || `Customer ${verifiedPhone.slice(-4)}`,
+            phone: customerIdentifier,
+            name: card.name || customerName || `Customer ${customerIdentifier.slice(-4)}`,
             stamps: card.stamps,
             completedCards: card.completed_cards,
             lastStampAt: now,
             usedTokens: [token]
           };
+          if (!db.usedTokens) db.usedTokens = {};
+          db.usedTokens[token] = { shopId: shop.id, phone: customerIdentifier, usedAt: now };
           db.history.unshift({
             shopSlug: shop.slug,
             shopId: shop.id,
-            phone: verifiedPhone,
-            customerName: card.name || name || `Customer ${verifiedPhone.slice(-4)}`,
+            phone: customerIdentifier,
+            customerName: card.name || customerName || `Customer ${customerIdentifier.slice(-4)}`,
             actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
             stampsAtPoint: card.stamps,
             timestamp: now

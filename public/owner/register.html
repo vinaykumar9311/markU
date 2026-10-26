@@ -3,282 +3,664 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enroll Your Shop · MarkU</title>
+  <title>Enroll Your Shop · MarkU Digital Loyalty</title>
+  
   <!-- Progressive Web App (PWA) Manifest & Meta -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#0d0d0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MarkU">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
+  <!-- Typography: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase SDK Compat for SMS OTP -->
+  <!-- Firebase SDK Compat for Google & Email Auth -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { 
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .gold-gradient-text {
+      background: linear-gradient(135deg, #f6d365 0%, #d49a37 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #e5a83b 0%, #cb8926 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(203, 137, 38, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #edb449 0%, #d9932d 100%);
+      box-shadow: 0 6px 20px rgba(203, 137, 38, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .dark-glow-bg {
+      background: radial-gradient(circle at 50% 20%, rgba(212, 154, 55, 0.12) 0%, rgba(13, 13, 14, 0.98) 65%, #0d0d0e 100%);
+    }
+
+    .glass-card {
+      background: rgba(20, 20, 24, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .pricing-card {
+      background: rgba(24, 24, 29, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.25s ease;
+    }
+    .pricing-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(212, 154, 55, 0.4);
+      box-shadow: 0 12px 30px rgba(203, 137, 38, 0.15);
+    }
+    .pricing-popular {
+      background: linear-gradient(180deg, rgba(35, 30, 20, 0.95) 0%, rgba(20, 20, 25, 0.95) 100%);
+      border: 2px solid #e5a83b;
+      box-shadow: 0 10px 30px rgba(229, 168, 59, 0.2);
+    }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased">
+<body class="dark-glow-bg bg-[#0d0d0e] text-white min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased selection:bg-amber-500 selection:text-white">
 
-  <!-- Header -->
-  <header class="max-w-md w-full mx-auto pt-4 flex justify-between items-center">
-    <a href="/" class="flex items-center gap-2">
-      <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-sm flex items-center justify-center">M</span>
-      <span class="font-bold text-base tracking-tight text-gray-900">MarkU</span>
+  <!-- Ambient Golden Swirl Background Blur -->
+  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[380px] bg-amber-500/10 blur-[140px] pointer-events-none rounded-full"></div>
+
+  <!-- Header with Brand Logo -->
+  <header class="max-w-2xl w-full mx-auto pt-4 flex justify-between items-center relative z-10">
+    <a href="/" class="flex items-center gap-0.5 shrink-0" title="MarkU Home">
+      <span class="text-2xl font-black tracking-tight text-white">Mark</span>
+      <span class="text-2xl font-black tracking-tight text-[#d99b3b] relative">
+        U
+        <svg class="w-3.5 h-2 absolute -top-1 right-0 text-[#d99b3b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M1 2C4 7 10 7 13 2" />
+        </svg>
+      </span>
     </a>
-    <a href="/owner/login.html" class="text-xs text-gray-600 hover:text-gray-900 font-medium">Already registered? Log in</a>
+    <a href="/owner/login.html" class="text-xs font-semibold text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+      <span>Already registered? Sign in</span>
+      <span>&rarr;</span>
+    </a>
   </header>
 
-  <!-- Register Card -->
-  <main class="w-full max-w-md mx-auto my-6 bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-5">
+  <!-- ======================================================== -->
+  <!-- STEP 1: SHOP REGISTRATION FORM                           -->
+  <!-- ======================================================== -->
+  <main id="registerStepContainer" class="w-full max-w-lg mx-auto my-6 glass-card rounded-3xl p-6 sm:p-8 space-y-6 relative z-10">
     
     <div>
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl font-bold text-gray-900">Enroll Your Shop</h1>
-        <span id="authBadge" class="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-          Phone Verification
-        </span>
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-2.5">
+        <span>Quick Onboarding · Free 7-Day Trial</span>
       </div>
-      <p class="text-xs text-gray-500 mt-1">Register with your mobile number to launch your counter terminal in 60 seconds.</p>
+      <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Enroll Your Shop</h1>
+      <p class="text-xs sm:text-sm text-gray-400 mt-1">Setup your counter QR kiosk in under 60 seconds. Zero hardware needed.</p>
     </div>
 
-    <div id="errorBanner" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3"></div>
+    <!-- Error Banner -->
+    <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <form onsubmit="handleSendOtp(event)" class="space-y-4">
+    <!-- 1. Google 1-Tap Quick Start -->
+    <div class="space-y-3">
+      <button type="button" id="googleQuickBtn" onclick="handleGoogleRegister()"
+        class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-3">
+        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span id="googleBtnLabel">Continue with Google (Fastest)</span>
+      </button>
+
+      <!-- Divider -->
+      <div class="relative flex items-center justify-center pt-2">
+        <div class="border-t border-gray-800 w-full"></div>
+        <span class="bg-[#141418] px-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 absolute">or enter business details</span>
+      </div>
+    </div>
+
+    <!-- 2. Manual Shop Registration Form -->
+    <form id="registerForm" onsubmit="handleRegistrationSubmit(event)" class="space-y-4 pt-1">
       
       <!-- Shop Name -->
       <div>
-        <label for="shopName" class="block text-xs font-semibold text-gray-700 mb-1">Shop / Business Name</label>
-        <input type="text" id="shopName" required placeholder="e.g. Royal Cafe" oninput="autoSlug()"
-          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+        <label for="shopName" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Business / Shop Name</label>
+        <input type="text" id="shopName" required placeholder="e.g. Royal Cafe & Bakery" oninput="autoSlug()"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
       </div>
 
       <!-- Shop Slug -->
       <div>
-        <label for="slug" class="block text-xs font-semibold text-gray-700 mb-1">Shop Slug (Counter URL)</label>
-        <div class="flex items-center bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 text-xs text-gray-500 font-mono focus-within:ring-2 focus-within:ring-indigo-500">
+        <label for="slug" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Counter Kiosk URL</label>
+        <div class="flex items-center bg-[#17171c] border border-gray-800 focus-within:border-amber-500 rounded-xl px-3.5 py-2 text-xs font-mono text-gray-400">
           <span>/shop/</span>
           <input type="text" id="slug" required placeholder="royal-cafe"
-            class="bg-transparent text-gray-900 focus:outline-none flex-1 ml-1 font-mono text-xs">
+            class="bg-transparent text-[#e5a83b] font-bold focus:outline-none flex-1 ml-1 font-mono text-xs">
         </div>
       </div>
 
       <!-- Reward & Target Stamps -->
       <div class="grid grid-cols-3 gap-2.5">
         <div class="col-span-2">
-          <label for="reward" class="block text-xs font-semibold text-gray-700 mb-1">Reward Item</label>
-          <input type="text" id="reward" placeholder="e.g. Free Coffee"
-            class="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <label for="reward" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Reward Offered</label>
+          <input type="text" id="reward" placeholder="e.g. Free Coffee" value="1 Free Item"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
         </div>
         <div>
-          <label for="stampsTarget" class="block text-xs font-semibold text-gray-700 mb-1">Stamps Target</label>
+          <label for="stampsTarget" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Stamps Target</label>
           <input type="number" id="stampsTarget" value="10" min="2" max="50"
-            class="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500">
         </div>
       </div>
 
-      <!-- Phone Number Verification Section -->
-      <div class="border-t border-gray-100 pt-3 space-y-3">
-        
-        <div id="phoneInputGroup">
-          <label for="phone" class="block text-xs font-semibold text-gray-700 mb-1">Owner Mobile Number</label>
-          <input type="tel" id="phone" required placeholder="+919876543210"
-            class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-          <p class="text-[11px] text-gray-400 mt-1">We'll verify your number via SMS OTP.</p>
+      <!-- Owner Credentials (Email & Password) -->
+      <div id="credentialsSection" class="border-t border-gray-800/80 pt-3 space-y-3">
+        <div>
+          <label for="ownerEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Owner Email</label>
+          <input type="email" id="ownerEmail" required placeholder="owner@store.com"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
         </div>
 
-        <div id="recaptcha-container"></div>
-
-        <div id="otpInputGroup" class="hidden space-y-2">
-          <label for="otpCode" class="block text-xs font-semibold text-gray-700">Enter 6-Digit SMS Code</label>
-          <input type="text" id="otpCode" maxlength="6" placeholder="123456"
-            class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-base font-mono text-center tracking-widest text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <div class="flex justify-between items-center text-xs text-gray-500">
-            <span id="targetPhoneLabel">Code sent to mobile</span>
-            <button type="button" onclick="backToPhone()" class="text-indigo-600 hover:underline">Change number</button>
-          </div>
+        <div>
+          <label for="ownerPassword" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Create Password</label>
+          <input type="password" id="ownerPassword" required placeholder="At least 6 characters" minlength="6"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
         </div>
-
       </div>
 
-      <!-- Primary Action Button -->
-      <button type="submit" id="mainActionBtn"
-        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-sm">
-        Send Verification Code &rarr;
+      <!-- Hidden Google ID Token if authenticated via Google -->
+      <input type="hidden" id="googleTokenInput">
+
+      <button type="submit" id="mainSubmitBtn"
+        class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md mt-2">
+        Continue to Plan Selection &rarr;
       </button>
 
     </form>
 
-    <div class="text-center text-xs text-gray-500 pt-3 border-t border-gray-100">
-      Already enrolled? <a href="/owner/login.html" class="text-indigo-600 font-semibold hover:underline">Sign in to your shop</a>
+    <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
+      Already have a shop account? <a href="/owner/login.html" class="text-[#e5a83b] font-bold hover:underline">Sign in to your shop</a>
     </div>
 
   </main>
 
-  <footer class="max-w-md w-full mx-auto pb-4 text-center text-xs text-gray-400">
-    MarkU Loyalty Platform
+  <!-- ======================================================== -->
+  <!-- STEP 2: ATTRACTIVE SUBSCRIPTION PLAN SELECTION MODAL     -->
+  <!-- ======================================================== -->
+  <div id="subscriptionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+    <div class="max-w-4xl w-full my-8 bg-[#121216] border border-gray-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 animate-in fade-in duration-200">
+      
+      <!-- Header -->
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-xs font-bold uppercase tracking-wider">
+          <span>Choose Your MarkU Plan</span>
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">Simple, Transparent Pricing</h2>
+        <p class="text-xs sm:text-sm text-gray-400 max-w-xl mx-auto">Start with our risk-free 7-day trial or lock in the high-ROI Growth annual plan.</p>
+      </div>
+
+      <!-- 3 Subscription Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
+        
+        <!-- PLAN 1: 1 WEEK FREE TRIAL -->
+        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Trial Pass</span>
+              <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/10 text-gray-300">7 Days Free</span>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1">
+                <span class="text-3xl sm:text-4xl font-black text-white">₹0</span>
+                <span class="text-xs text-gray-400">/ 7 days</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">Full access to test with real counter visitors.</p>
+            </div>
+            
+            <ul class="text-xs space-y-2.5 text-gray-300 border-t border-gray-800 pt-4">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Dynamic 1-Use Counter QR</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Customer Loyalty Stamp Pass</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Real-time Live Analytics</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>No Credit Card Needed</span>
+              </li>
+            </ul>
+          </div>
+
+          <button type="button" onclick="activatePlan('trial')" id="btnPlanTrial"
+            class="w-full py-3 px-4 rounded-xl border border-gray-600 hover:border-gray-400 text-white font-bold text-xs transition-all text-center">
+            Start 1-Week Free Trial &rarr;
+          </button>
+        </div>
+
+        <!-- PLAN 2: PRO MONTHLY (₹149 / mo) -->
+        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-extrabold text-amber-400 uppercase tracking-wider">Pro Monthly</span>
+              <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Flexible</span>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1">
+                <span class="text-3xl sm:text-4xl font-black text-white">₹149</span>
+                <span class="text-xs text-gray-400">/ month</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">For growing local shops & busy cafes.</p>
+            </div>
+            
+            <ul class="text-xs space-y-2.5 text-gray-300 border-t border-gray-800 pt-4">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Unlimited Customer Passes</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Custom Outlet Logo & Theme</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Google Review & Instagram Booster</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span>Anti-Cheat Cooldown Controls</span>
+              </li>
+            </ul>
+          </div>
+
+          <button type="button" onclick="openPaymentFlow('monthly')" id="btnPlanMonthly"
+            class="w-full py-3 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs transition-all text-center">
+            Choose Monthly (₹149) &rarr;
+          </button>
+        </div>
+
+        <!-- PLAN 3: GROWTH ANNUAL (₹999 / yr) - BEST VALUE -->
+        <div class="pricing-card pricing-popular rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+          <div class="absolute -top-3 right-6 bg-[#e5a83b] text-gray-950 font-black text-[10px] px-3 py-0.5 rounded-full uppercase tracking-wider shadow-md">
+            Best Value · Save 44%
+          </div>
+
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black text-[#e5a83b] uppercase tracking-wider">Growth Annual</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300">₹83 / month</span>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1">
+                <span class="text-3xl sm:text-4xl font-black text-white">₹999</span>
+                <span class="text-xs text-gray-400">/ year</span>
+              </div>
+              <p class="text-xs text-amber-300/80 mt-1">Get 12 months for the price of 6.7 months!</p>
+            </div>
+            
+            <ul class="text-xs space-y-2.5 text-gray-200 border-t border-amber-500/20 pt-4">
+              <li class="flex items-center gap-2">
+                <span class="text-[#e5a83b] font-bold">★</span>
+                <span class="font-bold text-white">All Pro Features Included</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-[#e5a83b] font-bold">★</span>
+                <span>Priority 24/7 WhatsApp VIP Support</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-[#e5a83b] font-bold">★</span>
+                <span>Dedicated Standee / QR Design Kit</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-[#e5a83b] font-bold">★</span>
+                <span>Multi-Outlet Expansion Ready</span>
+              </li>
+            </ul>
+          </div>
+
+          <button type="button" onclick="openPaymentFlow('yearly')" id="btnPlanYearly"
+            class="w-full btn-gold py-3 px-4 rounded-xl font-black text-xs transition-all text-center shadow-lg">
+            Get Annual VIP (₹999) &rarr;
+          </button>
+        </div>
+
+      </div>
+
+      <div class="text-center pt-2">
+        <p class="text-[11px] text-gray-500">Need custom franchise pricing or custom payment method? <a href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20need%20custom%20plan%20pricing" target="_blank" class="text-amber-400 hover:underline">Chat with founders on WhatsApp</a></p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- STEP 3: PAYMENT DETAILS & ACTIVATION MODAL               -->
+  <!-- ======================================================== -->
+  <div id="paymentModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="max-w-md w-full bg-[#141418] border border-amber-500/40 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+      
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-[#e5a83b] flex items-center justify-center font-bold text-sm">💳</span>
+          <div>
+            <h3 id="paymentModalTitle" class="text-sm font-extrabold text-white">Upgrade to Pro</h3>
+            <span id="paymentModalAmount" class="text-xs font-bold text-amber-400">₹149 / month</span>
+          </div>
+        </div>
+        <button type="button" onclick="closePaymentModal()" class="text-gray-400 hover:text-white text-xl font-bold leading-none">&times;</button>
+      </div>
+
+      <div class="space-y-4 text-xs text-gray-300">
+        <p class="leading-relaxed">Complete your payment securely via official Razorpay link or UPI transfer:</p>
+
+        <!-- Direct Payment Link Button -->
+        <a id="paymentLinkBtn" href="https://rzp.io/l/marku-monthly" target="_blank"
+          class="w-full btn-gold font-bold py-3 px-4 rounded-xl text-center block shadow-md">
+          Pay via Razorpay / UPI / Card &rarr;
+        </a>
+
+        <!-- UPI Direct Option -->
+        <div class="bg-[#1a1a20] border border-gray-800 rounded-xl p-3.5 space-y-1.5">
+          <div class="flex justify-between items-center text-gray-400 font-mono text-[11px]">
+            <span>UPI ID:</span>
+            <button type="button" onclick="copyUpiId()" class="text-amber-400 font-bold hover:underline">Copy UPI</button>
+          </div>
+          <div id="upiIdValue" class="text-sm font-bold text-white font-mono">marku@upi</div>
+          <p class="text-[10px] text-gray-500">Scan or send from any app: GPay, PhonePe, Paytm, BHIM.</p>
+        </div>
+
+        <!-- Reference / UTR Input -->
+        <div class="space-y-1.5">
+          <label for="paymentRefInput" class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+            Payment Reference / Transaction ID (Optional)
+          </label>
+          <input type="text" id="paymentRefInput" placeholder="e.g. 423589123456 or RZP_12345"
+            class="w-full bg-[#1a1a20] border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" onclick="confirmPaymentAndLaunch()" id="confirmPayBtn"
+            class="flex-1 bg-white hover:bg-gray-100 text-gray-900 font-bold py-2.5 rounded-xl text-xs transition-all">
+            Confirm & Activate Cockpit &rarr;
+          </button>
+          <button type="button" onclick="activatePlan('trial')" class="px-3 py-2.5 text-xs text-gray-400 hover:text-white">
+            Use Free Trial
+          </button>
+        </div>
+
+        <!-- WhatsApp Help -->
+        <div class="text-center pt-1 border-t border-gray-800/80">
+          <a id="waPayLink" href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20have%20completed%20the%20payment%20for%20my%20subscription" target="_blank"
+            class="text-[11px] text-emerald-400 font-semibold hover:underline flex items-center justify-center gap-1">
+            <span>💬 Send payment screenshot on WhatsApp</span>
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="max-w-2xl w-full mx-auto pb-4 text-center text-xs text-gray-500 relative z-10">
+    MarkU Loyalty Platform · Simple, High-Converting Digital Loyalty
   </footer>
 
   <script>
     let firebaseConfig = null;
-    let confirmationResult = null;
-    let recaptchaVerifier = null;
-    let isOtpSent = false;
-    let currentPhone = '';
+    let selectedPlan = 'trial';
+    let registeredShop = null;
+    let registeredToken = null;
 
     window.addEventListener('DOMContentLoaded', async () => {
+      // Check if arriving from Google login redirect
+      const urlParams = new URLSearchParams(window.location.search);
+      const googleParam = urlParams.get('google');
+      const emailParam = urlParams.get('email');
+      if (emailParam) {
+        document.getElementById('ownerEmail').value = emailParam;
+        document.getElementById('credentialsSection').classList.add('hidden');
+        document.getElementById('ownerPassword').required = false;
+        document.getElementById('ownerPassword').value = 'GoogleAuth_' + Math.random().toString(36).substring(2);
+      }
+      const cachedToken = sessionStorage.getItem('google_id_token');
+      if (cachedToken) {
+        document.getElementById('googleTokenInput').value = cachedToken;
+      }
+
       try {
         const res = await fetch('/api/config/firebase');
         firebaseConfig = await res.json();
         if (firebaseConfig.isConfigured && window.firebase) {
-          firebase.initializeApp(firebaseConfig);
-          recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-          document.getElementById('authBadge').textContent = 'SMS OTP Active';
-        } else {
-          document.getElementById('authBadge').textContent = 'Direct Phone Registration';
-          document.getElementById('mainActionBtn').textContent = 'Enroll Shop & Launch Counter →';
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
         }
       } catch (err) {
-        console.warn('Firebase init:', err);
+        console.warn('Firebase config note:', err);
       }
     });
 
     function autoSlug() {
       const name = document.getElementById('shopName').value;
-      document.getElementById('slug').value = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      const slugInput = document.getElementById('slug');
+      slugInput.value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     }
 
-    function backToPhone() {
-      isOtpSent = false;
-      document.getElementById('phoneInputGroup').classList.remove('hidden');
-      document.getElementById('otpInputGroup').classList.add('hidden');
-      document.getElementById('mainActionBtn').textContent = 'Send Verification Code →';
+    // 1. Google One-Tap Register Flow
+    async function handleGoogleRegister() {
+      const errorBanner = document.getElementById('errorBanner');
+      errorBanner.classList.add('hidden');
+      const btn = document.getElementById('googleQuickBtn');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>Connecting to Google...</span>';
+
+      try {
+        if (!firebaseConfig || !firebaseConfig.isConfigured || !window.firebase) {
+          throw new Error('Google Sign-In is initializing. Please enter business details below.');
+        }
+
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        const idToken = await result.user.getIdToken();
+
+        document.getElementById('googleTokenInput').value = idToken;
+        document.getElementById('ownerEmail').value = result.user.email;
+        document.getElementById('credentialsSection').classList.add('hidden');
+        document.getElementById('ownerPassword').required = false;
+        document.getElementById('ownerPassword').value = 'GoogleAuth_' + Math.random().toString(36).substring(2);
+
+        // Pre-fill shop name if empty
+        const currentShopName = document.getElementById('shopName').value.trim();
+        if (!currentShopName && result.user.displayName) {
+          document.getElementById('shopName').value = result.user.displayName + "'s Store";
+          autoSlug();
+        }
+
+        btn.innerHTML = `<span class="text-emerald-600 font-bold">✓ Connected as ${escapeHtml(result.user.email)}</span>`;
+      } catch (err) {
+        console.error('Google register error:', err);
+        showError(err.message || 'Could not connect with Google. Please fill in details below.');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
     }
 
-    async function handleSendOtp(e) {
+    // 2. Submit Shop Registration Form -> Prompts Subscription Selection Modal
+    async function handleRegistrationSubmit(e) {
       e.preventDefault();
       const errorBanner = document.getElementById('errorBanner');
       errorBanner.classList.add('hidden');
 
-      if (isOtpSent) {
-        // If OTP is already sent, this submission verifies OTP and finishes registration
-        await verifyOtpAndRegister();
+      const shopName = document.getElementById('shopName').value.trim();
+      const slug = document.getElementById('slug').value.trim();
+      const reward = document.getElementById('reward').value.trim();
+      const stampsTarget = parseInt(document.getElementById('stampsTarget').value, 10) || 10;
+      const email = document.getElementById('ownerEmail').value.trim();
+      const password = document.getElementById('ownerPassword').value.trim();
+      const googleToken = document.getElementById('googleTokenInput').value;
+
+      if (!shopName || !slug || !email) {
+        showError('Please complete all required fields.');
         return;
       }
 
-      let rawPhone = document.getElementById('phone').value.trim();
-      let cleaned = rawPhone.replace(/[\s\-\(\)]/g, '');
-      if (!cleaned.startsWith('+')) {
-        if (cleaned.length === 10) cleaned = '+91' + cleaned;
-        else cleaned = '+' + cleaned;
-      }
+      const mainBtn = document.getElementById('mainSubmitBtn');
+      mainBtn.disabled = true;
+      mainBtn.textContent = 'Enrolling Shop...';
 
-      if (!cleaned || cleaned.length < 10) {
-        showError('Please enter a valid 10-digit mobile number.');
-        return;
-      }
-      currentPhone = cleaned;
-
-      const btn = document.getElementById('mainActionBtn');
-      btn.disabled = true;
-
-      // If Firebase Phone Auth is initialized
-      if (firebaseConfig && firebaseConfig.isConfigured && window.firebase) {
-        btn.textContent = 'Sending SMS Code...';
-        try {
-          if (!recaptchaVerifier) {
-            recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-          }
-          confirmationResult = await firebase.auth().signInWithPhoneNumber(currentPhone, recaptchaVerifier);
-          isOtpSent = true;
-          document.getElementById('phoneInputGroup').classList.add('hidden');
-          document.getElementById('otpInputGroup').classList.remove('hidden');
-          document.getElementById('targetPhoneLabel').textContent = `Code sent to ${currentPhone}`;
-          btn.textContent = 'Verify Code & Enroll Shop →';
-        } catch (err) {
-          console.error(err);
-          const msg = err.message || '';
-          if (window.grecaptcha && recaptchaVerifier) {
-            try { recaptchaVerifier.render().then(w => grecaptcha.reset(w)); } catch (e) {}
-          }
-          showError('Firebase SMS: ' + msg);
-        } finally {
-          btn.disabled = false;
+      try {
+        let res;
+        // If Google token available, use google-auth endpoint
+        if (googleToken) {
+          res = await fetch('/api/owner/google-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              firebaseIdToken: googleToken,
+              shopName,
+              slug
+            })
+          });
+        } else {
+          // Standard owner register
+          res = await fetch('/api/owner/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shopName,
+              slug,
+              rewardDescription: reward,
+              stampsTarget,
+              email,
+              password
+            })
+          });
         }
-      } else {
-        btn.disabled = false;
-        showError('SMS OTP service is currently not configured or loading. Please contact admin.');
-      }
-    }
 
-    async function verifyOtpAndRegister() {
-      const code = document.getElementById('otpCode').value.trim();
-      if (!code || code.length < 6) {
-        showError('Please enter the 6-digit verification code.');
-        return;
-      }
-
-      const btn = document.getElementById('mainActionBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying Code...';
-
-      try {
-        const userCredential = await confirmationResult.confirm(code);
-        const idToken = await userCredential.user.getIdToken();
-        const phone = currentPhone || userCredential.user.phoneNumber;
-
-        await completeRegistration({ phone, firebaseIdToken: idToken });
-      } catch (err) {
-        showError('Invalid verification code. Please check and try again.');
-        btn.disabled = false;
-        btn.textContent = 'Verify Code & Enroll Shop →';
-      }
-    }
-
-    async function completeRegistration(authPayload) {
-      const btn = document.getElementById('mainActionBtn');
-      btn.disabled = true;
-      btn.textContent = 'Creating Shop Profile...';
-
-      const payload = {
-        shopName: document.getElementById('shopName').value.trim(),
-        slug: document.getElementById('slug').value.trim(),
-        rewardDescription: document.getElementById('reward').value.trim() || '1 Free Item',
-        stampsTarget: parseInt(document.getElementById('stampsTarget').value, 10) || 10,
-        ...authPayload
-      };
-
-      try {
-        const res = await fetch('/api/owner/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
         const data = await res.json();
         if (data.success) {
-          if (data.token) localStorage.setItem('owner_token', data.token);
+          registeredToken = data.token;
+          registeredShop = data.shop;
+          localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
-          localStorage.setItem('owner_phone', authPayload.phone);
-          window.location.href = '/owner/dashboard.html';
+
+          // Open the attractive subscription modal!
+          document.getElementById('subscriptionModal').classList.remove('hidden');
         } else {
-          showError(data.message || 'Registration failed.');
-          btn.disabled = false;
-          btn.textContent = isOtpSent ? 'Verify Code & Enroll Shop →' : 'Enroll Shop & Launch Counter →';
+          showError(data.message || 'Registration failed. Try a different shop slug.');
+          mainBtn.disabled = false;
+          mainBtn.textContent = 'Continue to Plan Selection →';
         }
       } catch (err) {
         showError('Connection error. Please try again.');
-        btn.disabled = false;
+        mainBtn.disabled = false;
+        mainBtn.textContent = 'Continue to Plan Selection →';
       }
+    }
+
+    // 3. Plan Activation Logic
+    async function activatePlan(plan) {
+      selectedPlan = plan;
+      const token = registeredToken || localStorage.getItem('owner_token');
+      if (token) {
+        try {
+          await fetch('/api/owner/subscription/select', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ plan })
+          });
+        } catch (e) {
+          console.warn('Subscription select note:', e);
+        }
+      }
+      // Redirect straight to dashboard
+      window.location.href = '/owner/dashboard.html';
+    }
+
+    // 4. Open Payment Flow Modal for Paid Plans
+    function openPaymentFlow(plan) {
+      selectedPlan = plan;
+      const titleEl = document.getElementById('paymentModalTitle');
+      const amountEl = document.getElementById('paymentModalAmount');
+      const linkBtn = document.getElementById('paymentLinkBtn');
+
+      if (plan === 'monthly') {
+        titleEl.textContent = 'Upgrade to Pro Monthly';
+        amountEl.textContent = '₹149 / month';
+        linkBtn.href = 'https://rzp.io/l/marku-monthly';
+      } else {
+        titleEl.textContent = 'Upgrade to Growth Annual';
+        amountEl.textContent = '₹999 / year (Save 44%)';
+        linkBtn.href = 'https://rzp.io/l/marku-yearly';
+      }
+
+      document.getElementById('paymentModal').classList.remove('hidden');
+    }
+
+    function closePaymentModal() {
+      document.getElementById('paymentModal').classList.add('hidden');
+    }
+
+    async function confirmPaymentAndLaunch() {
+      const ref = document.getElementById('paymentRefInput').value.trim();
+      const token = registeredToken || localStorage.getItem('owner_token');
+      if (token) {
+        try {
+          await fetch('/api/owner/subscription/select', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ plan: selectedPlan, paymentReference: ref })
+          });
+        } catch (e) {}
+      }
+      window.location.href = '/owner/dashboard.html';
+    }
+
+    function copyUpiId() {
+      navigator.clipboard.writeText('marku@upi');
+      alert('UPI ID copied: marku@upi');
     }
 
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
       errorBanner.textContent = msg;
       errorBanner.classList.remove('hidden');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     }
   </script>
 </body>

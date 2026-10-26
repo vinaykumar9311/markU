@@ -112,6 +112,16 @@
           <span>Reviews</span>
         </button>
 
+        <!-- Subscription (Dedicated View) -->
+        <button type="button" onclick="openViewFromMenu('subscription')" id="sideNavSubscription"
+          class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center justify-between gap-3 transition-all text-left">
+          <div class="flex items-center gap-3">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            <span>Subscription</span>
+          </div>
+          <span id="sideNavSubBadge" class="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">TRIAL</span>
+        </button>
+
         <!-- Settings (Quick Actions & Account) -->
         <button type="button" onclick="openViewFromMenu('settings')" id="sideNavSettings"
           class="w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left">
@@ -824,6 +834,178 @@
 
       </div>
 
+      <!-- ======================================================== -->
+      <!-- VIEW 7: SUBSCRIPTION & BILLING (DEDICATED)              -->
+      <!-- ======================================================== -->
+      <div id="viewSubscription" class="hidden space-y-6">
+        
+        <div class="flex items-center justify-between pb-2">
+          <button type="button" onclick="openViewFromMenu('dashboard')"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#cb8926] hover:underline">
+            <span>&larr;</span>
+            <span>Back to Dashboard</span>
+          </button>
+          <span class="text-xs font-medium text-gray-400">Plan & Billing Overview</span>
+        </div>
+
+        <!-- Active Plan Banner Card -->
+        <div class="bg-gradient-to-r from-[#141418] via-[#1a1a22] to-[#252018] border border-amber-500/30 rounded-3xl p-6 sm:p-8 text-white space-y-4 shadow-xl relative overflow-hidden">
+          <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span id="subActivePlanBadge" class="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  7-DAY FREE TRIAL
+                </span>
+                <span id="subStatusBadge" class="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  ACTIVE
+                </span>
+              </div>
+              <h2 class="text-2xl sm:text-3xl font-black text-white tracking-tight" id="subPlanHeading">
+                1-Week Free Trial
+              </h2>
+              <p class="text-xs text-gray-300" id="subExpiryDesc">
+                Valid until <span id="subExpiryDate" class="font-bold text-white">...</span> (<span id="subDaysLeft" class="font-bold text-amber-400">7</span> days remaining)
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2.5 shrink-0">
+              <button type="button" onclick="scrollToPricingCards()" class="btn-gold px-5 py-2.5 rounded-xl text-xs font-bold shadow-md">
+                Upgrade Plan &rarr;
+              </button>
+              <a id="subSupportWaLink" href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20have%20a%20question%20about%20my%20subscription" target="_blank"
+                class="px-4 py-2.5 rounded-xl border border-gray-700 bg-black/40 hover:bg-black/60 text-xs font-bold text-gray-200 transition-all flex items-center gap-1.5">
+                <span>💬 WhatsApp Support</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Progress / countdown bar -->
+          <div class="w-full bg-black/40 rounded-full h-2 overflow-hidden border border-white/5 relative z-10">
+            <div id="subProgressBar" class="bg-gradient-to-r from-amber-400 to-[#d99b3b] h-full rounded-full transition-all duration-500" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- 3 Subscription Tiers Cards -->
+        <div id="pricingCardsAnchor" class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base font-extrabold text-gray-900">Available Subscription Plans</h3>
+            <span class="text-xs text-gray-400">Cancel or switch anytime</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
+            
+            <!-- Plan 1: 1 Week Free Trial -->
+            <div class="bg-white border border-gray-200/90 rounded-2xl p-6 card-shadow flex flex-col justify-between space-y-6">
+              <div class="space-y-3.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Trial Pass</span>
+                  <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600">7 Days</span>
+                </div>
+                <div>
+                  <div class="text-3xl font-black text-gray-900">₹0</div>
+                  <span class="text-xs text-gray-400">First 7 days free</span>
+                </div>
+                <ul class="text-xs space-y-2 text-gray-600 border-t border-gray-100 pt-3">
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Full Kiosk QR Terminal</li>
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Digital Stamps & Pass</li>
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Live Customer Log</li>
+                </ul>
+              </div>
+              <button type="button" id="btnDashPlanTrial" onclick="selectPlanFromDashboard('trial')"
+                class="w-full py-2.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition-all text-center">
+                Current / Free Plan
+              </button>
+            </div>
+
+            <!-- Plan 2: Pro Monthly -->
+            <div class="bg-white border border-gray-200/90 rounded-2xl p-6 card-shadow flex flex-col justify-between space-y-6">
+              <div class="space-y-3.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-amber-600 uppercase tracking-wider">Pro Monthly</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Flexible</span>
+                </div>
+                <div>
+                  <div class="flex items-baseline gap-1">
+                    <span class="text-3xl font-black text-gray-900">₹149</span>
+                    <span class="text-xs text-gray-500">/ month</span>
+                  </div>
+                  <span class="text-xs text-gray-400">Renews monthly</span>
+                </div>
+                <ul class="text-xs space-y-2 text-gray-600 border-t border-gray-100 pt-3">
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Unlimited Customer Cards</li>
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Custom Outlet Logo & Theme</li>
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Google Review & Instagram Booster</li>
+                  <li class="flex items-center gap-2"><span class="text-emerald-600 font-bold">✓</span> Anti-Cheat Cooldown Controls</li>
+                </ul>
+              </div>
+              <button type="button" id="btnDashPlanMonthly" onclick="selectPlanFromDashboard('monthly')"
+                class="w-full py-2.5 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 border border-amber-300 font-bold text-xs transition-all text-center">
+                Upgrade to Monthly (₹149) &rarr;
+              </button>
+            </div>
+
+            <!-- Plan 3: Growth Annual (Most Popular) -->
+            <div class="bg-gradient-to-b from-[#1c1a17] to-[#121215] text-white border-2 border-[#e5a83b] rounded-2xl p-6 shadow-xl flex flex-col justify-between space-y-6 relative overflow-hidden">
+              <div class="absolute -top-3 right-4 bg-[#e5a83b] text-gray-950 font-black text-[9px] px-3 py-0.5 rounded-full uppercase tracking-wider shadow">
+                Save 44% · Best Value
+              </div>
+              <div class="space-y-3.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-black text-amber-400 uppercase tracking-wider">Growth Annual</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300">₹83 / mo</span>
+                </div>
+                <div>
+                  <div class="flex items-baseline gap-1">
+                    <span class="text-3xl font-black text-white">₹999</span>
+                    <span class="text-xs text-gray-400">/ year</span>
+                  </div>
+                  <span class="text-xs text-amber-300/80">Get 12 months for price of ~6.7 mo!</span>
+                </div>
+                <ul class="text-xs space-y-2 text-gray-200 border-t border-white/10 pt-3">
+                  <li class="flex items-center gap-2"><span class="text-amber-400 font-bold">★</span> All Pro Features Included</li>
+                  <li class="flex items-center gap-2"><span class="text-amber-400 font-bold">★</span> VIP WhatsApp Support (Priority)</li>
+                  <li class="flex items-center gap-2"><span class="text-amber-400 font-bold">★</span> Standee / Table QR Design Pack</li>
+                  <li class="flex items-center gap-2"><span class="text-amber-400 font-bold">★</span> Multi-Outlet Expansion Ready</li>
+                </ul>
+              </div>
+              <button type="button" id="btnDashPlanYearly" onclick="selectPlanFromDashboard('yearly')"
+                class="w-full btn-gold py-2.5 px-4 rounded-xl font-black text-xs transition-all text-center shadow-md">
+                Claim Annual Pass (₹999) &rarr;
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Payment Info Card & Manual UTR verification -->
+        <div class="bg-white border border-gray-200/90 rounded-2xl p-6 card-shadow space-y-4">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm">₹</span>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900">Payment & Invoicing Info</h3>
+              <p class="text-xs text-gray-500">Need an invoice or have payment questions? Chat with our accounts team.</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <span class="text-gray-400 block text-[10px] uppercase font-bold">Payment Methods</span>
+              <span class="font-bold text-gray-800">UPI, Cards, NetBanking, Razorpay</span>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <span class="text-gray-400 block text-[10px] uppercase font-bold">Official UPI ID</span>
+              <span class="font-mono font-bold text-gray-800">marku@upi</span>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl border border-gray-200">
+              <span class="text-gray-400 block text-[10px] uppercase font-bold">Support WhatsApp</span>
+              <span class="font-bold text-emerald-700">+91 93115 94509</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </main>
 
   </div>
@@ -897,11 +1079,81 @@
             <button onclick="openViewFromMenu('reward'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Stamp Cards</button>
             <button onclick="openViewFromMenu('cooldown'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Campaigns</button>
             <button onclick="openViewFromMenu('reviews'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Reviews</button>
+            <button onclick="openViewFromMenu('subscription'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between">
+              <span>Subscription</span>
+              <span id="drawerSubBadge" class="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">TRIAL</span>
+            </button>
             <button onclick="openViewFromMenu('settings'); toggleCornerDrawer(false);" class="w-full text-left p-2.5 rounded-xl hover:bg-white/10">Settings</button>
           </nav>
         </div>
         <button onclick="handleLogout()" class="w-full text-left text-xs text-gray-400 hover:text-white p-2">Sign Out</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Subscription Payment Modal -->
+  <div id="dashPaymentModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="max-w-md w-full bg-[#141418] border border-amber-500/40 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl text-white">
+      
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-[#e5a83b] flex items-center justify-center font-bold text-sm">💳</span>
+          <div>
+            <h3 id="dashPaymentModalTitle" class="text-sm font-extrabold text-white">Upgrade Subscription</h3>
+            <span id="dashPaymentModalAmount" class="text-xs font-bold text-amber-400">₹149 / month</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeDashPaymentModal()" class="text-gray-400 hover:text-white text-xl font-bold leading-none">&times;</button>
+      </div>
+
+      <div class="space-y-4 text-xs text-gray-300">
+        <p class="leading-relaxed">Complete your payment securely via official Razorpay link or UPI transfer:</p>
+
+        <!-- Direct Payment Link Button -->
+        <a id="dashPaymentLinkBtn" href="https://rzp.io/l/marku-monthly" target="_blank"
+          class="w-full btn-gold font-bold py-3 px-4 rounded-xl text-center block shadow-md">
+          Pay via Razorpay / UPI / Card &rarr;
+        </a>
+
+        <!-- UPI Direct Option -->
+        <div class="bg-[#1a1a20] border border-gray-800 rounded-xl p-3.5 space-y-1.5">
+          <div class="flex justify-between items-center text-gray-400 font-mono text-[11px]">
+            <span>UPI ID:</span>
+            <button type="button" onclick="copyDashUpiId()" class="text-amber-400 font-bold hover:underline">Copy UPI</button>
+          </div>
+          <div id="dashUpiIdValue" class="text-sm font-bold text-white font-mono">marku@upi</div>
+          <p class="text-[10px] text-gray-500">Scan or send from any app: GPay, PhonePe, Paytm, BHIM.</p>
+        </div>
+
+        <!-- Reference / UTR Input -->
+        <div class="space-y-1.5">
+          <label for="dashPaymentRefInput" class="block text-[11px] font-bold text-gray-300 uppercase tracking-wider">
+            Payment Reference / Transaction ID (Optional)
+          </label>
+          <input type="text" id="dashPaymentRefInput" placeholder="e.g. 423589123456 or RZP_12345"
+            class="w-full bg-[#1a1a20] border border-gray-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" onclick="confirmDashPayment()" id="dashConfirmPayBtn"
+            class="flex-1 bg-white hover:bg-gray-100 text-gray-900 font-bold py-2.5 rounded-xl text-xs transition-all shadow">
+            Confirm & Activate Plan &rarr;
+          </button>
+          <button type="button" onclick="closeDashPaymentModal()" class="px-3 py-2.5 text-xs text-gray-400 hover:text-white">
+            Cancel
+          </button>
+        </div>
+
+        <!-- WhatsApp Help -->
+        <div class="text-center pt-1 border-t border-gray-800/80">
+          <a id="dashWaPayLink" href="https://api.whatsapp.com/send?phone=919311594509&text=Hi%20MarkU,%20I%20have%20completed%20the%20payment%20for%20my%20subscription" target="_blank"
+            class="text-[11px] text-emerald-400 font-semibold hover:underline flex items-center justify-center gap-1">
+            <span>💬 Send payment screenshot on WhatsApp</span>
+          </a>
+        </div>
+
+      </div>
+
     </div>
   </div>
 
@@ -1036,6 +1288,9 @@
             actList.innerHTML = '<div class="py-8 text-center text-xs text-gray-400">No activity recorded yet. Live stamps will show here.</div>';
           }
         }
+
+        // Keep Subscription badge in sync
+        loadSubscriptionDetails();
 
       } catch (err) {
         console.error(err);
@@ -1205,25 +1460,176 @@
       renderCustomerList(filtered);
     }
 
+    let activeDashPlan = 'trial';
+    let cachedSubscription = null;
+
     function openViewFromMenu(viewId) {
-      const views = ['dashboard', 'reward', 'cooldown', 'customers', 'reviews', 'settings'];
+      const views = ['dashboard', 'reward', 'cooldown', 'customers', 'reviews', 'settings', 'subscription'];
       views.forEach(v => {
         const el = document.getElementById('view' + capitalizeFirst(v));
         if (el) el.classList.toggle('hidden', v !== viewId);
       });
 
       // Update sidebar nav active state
-      ['Dashboard', 'Customers', 'Reward', 'Cooldown', 'Reviews', 'Settings'].forEach(n => {
+      ['Dashboard', 'Customers', 'Reward', 'Cooldown', 'Reviews', 'Subscription', 'Settings'].forEach(n => {
         const navBtn = document.getElementById('sideNav' + n);
         if (navBtn) {
-          if (n.toLowerCase() === viewId.toLowerCase() || (n === 'Reward' && viewId === 'reward') || (n === 'Reviews' && viewId === 'reviews') || (n === 'Settings' && viewId === 'settings')) {
-            navBtn.className = 'w-full gold-active-nav px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left';
+          if (n.toLowerCase() === viewId.toLowerCase()) {
+            navBtn.className = 'w-full gold-active-nav px-4 py-3 rounded-xl flex items-center justify-between gap-3 transition-all text-left';
           } else {
-            navBtn.className = 'w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center gap-3 transition-all text-left';
+            navBtn.className = 'w-full text-gray-400 hover:text-white hover:bg-white/5 px-4 py-3 rounded-xl flex items-center justify-between gap-3 transition-all text-left';
           }
         }
       });
+
+      if (viewId === 'subscription') {
+        loadSubscriptionDetails();
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function loadSubscriptionDetails() {
+      try {
+        const res = await fetch('/api/owner/subscription', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.subscription) {
+          cachedSubscription = data.subscription;
+          const sub = data.subscription;
+          const plan = sub.plan || 'trial';
+          const daysLeft = sub.daysRemaining != null ? sub.daysRemaining : 7;
+          const isAct = sub.status === 'active';
+
+          // Side & Drawer badges
+          const planUpper = plan.toUpperCase();
+          if (document.getElementById('sideNavSubBadge')) document.getElementById('sideNavSubBadge').textContent = planUpper;
+          if (document.getElementById('drawerSubBadge')) document.getElementById('drawerSubBadge').textContent = planUpper;
+
+          // Main Banner
+          if (document.getElementById('subActivePlanBadge')) {
+            document.getElementById('subActivePlanBadge').textContent = plan === 'trial' ? '7-DAY FREE TRIAL' : (plan === 'yearly' ? 'GROWTH ANNUAL PASS' : 'PRO MONTHLY');
+          }
+          if (document.getElementById('subStatusBadge')) {
+            document.getElementById('subStatusBadge').textContent = isAct ? 'ACTIVE' : 'EXPIRED';
+            document.getElementById('subStatusBadge').className = isAct 
+              ? 'text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+              : 'text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30';
+          }
+
+          if (document.getElementById('subPlanHeading')) {
+            document.getElementById('subPlanHeading').textContent = plan === 'trial' ? '1-Week Free Trial' : (plan === 'yearly' ? 'Growth Annual' : 'Pro Monthly');
+          }
+
+          if (document.getElementById('subDaysLeft')) document.getElementById('subDaysLeft').textContent = daysLeft;
+          if (document.getElementById('subExpiryDate')) {
+            try {
+              document.getElementById('subExpiryDate').textContent = new Date(sub.endsAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+              document.getElementById('subExpiryDate').textContent = sub.endsAt;
+            }
+          }
+
+          // Progress bar (percentage of total plan duration)
+          const totalDays = plan === 'yearly' ? 365 : (plan === 'monthly' ? 30 : 7);
+          const pct = Math.min(100, Math.max(5, Math.round((daysLeft / totalDays) * 100)));
+          if (document.getElementById('subProgressBar')) {
+            document.getElementById('subProgressBar').style.width = pct + '%';
+          }
+
+          // Update pricing buttons text
+          const btnTrial = document.getElementById('btnDashPlanTrial');
+          const btnMonthly = document.getElementById('btnDashPlanMonthly');
+          const btnYearly = document.getElementById('btnDashPlanYearly');
+
+          if (btnTrial) {
+            btnTrial.textContent = plan === 'trial' ? '✓ Currently Active (Free)' : 'Switch to Trial';
+          }
+          if (btnMonthly) {
+            btnMonthly.textContent = plan === 'monthly' ? '✓ Currently Active (Monthly)' : 'Upgrade to Monthly (₹149) →';
+          }
+          if (btnYearly) {
+            btnYearly.textContent = plan === 'yearly' ? '✓ Currently Active (Annual)' : 'Claim Annual Pass (₹999) →';
+          }
+        }
+      } catch (err) {
+        console.warn('Subscription fetch:', err);
+      }
+    }
+
+    function selectPlanFromDashboard(plan) {
+      activeDashPlan = plan;
+      if (plan === 'trial') {
+        if (confirm('Switch your active plan to the 1-Week Free Trial?')) {
+          activateDashPlanDirect('trial');
+        }
+        return;
+      }
+
+      // Paid plans: open payment modal
+      const titleEl = document.getElementById('dashPaymentModalTitle');
+      const amountEl = document.getElementById('dashPaymentModalAmount');
+      const linkBtn = document.getElementById('dashPaymentLinkBtn');
+
+      if (plan === 'monthly') {
+        titleEl.textContent = 'Upgrade to Pro Monthly';
+        amountEl.textContent = '₹149 / month';
+        linkBtn.href = cachedSubscription?.pricing?.monthly?.link || 'https://rzp.io/l/marku-monthly';
+      } else {
+        titleEl.textContent = 'Upgrade to Growth Annual (Best Value)';
+        amountEl.textContent = '₹999 / year (Save 44%)';
+        linkBtn.href = cachedSubscription?.pricing?.yearly?.link || 'https://rzp.io/l/marku-yearly';
+      }
+
+      document.getElementById('dashPaymentModal').classList.remove('hidden');
+    }
+
+    function closeDashPaymentModal() {
+      document.getElementById('dashPaymentModal').classList.add('hidden');
+    }
+
+    async function activateDashPlanDirect(plan, ref = '') {
+      try {
+        const res = await fetch('/api/owner/subscription/select', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ plan, paymentReference: ref })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(data.message || 'Plan updated successfully!');
+          closeDashPaymentModal();
+          loadSubscriptionDetails();
+        } else {
+          alert(data.message || 'Failed to update plan.');
+        }
+      } catch (e) {
+        alert('Network error while updating plan.');
+      }
+    }
+
+    async function confirmDashPayment() {
+      const ref = document.getElementById('dashPaymentRefInput').value.trim();
+      const btn = document.getElementById('dashConfirmPayBtn');
+      btn.disabled = true;
+      btn.textContent = 'Activating...';
+      await activateDashPlanDirect(activeDashPlan, ref);
+      btn.disabled = false;
+      btn.textContent = 'Confirm & Activate Plan →';
+    }
+
+    function copyDashUpiId() {
+      navigator.clipboard.writeText('marku@upi');
+      alert('UPI ID copied: marku@upi');
+    }
+
+    function scrollToPricingCards() {
+      const el = document.getElementById('pricingCardsAnchor');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
 
     function capitalizeFirst(str) {

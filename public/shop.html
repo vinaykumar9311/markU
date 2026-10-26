@@ -180,11 +180,17 @@
     document.getElementById('cardLookupLink').href = `/card.html?shop=${encodeURIComponent(shopSlug)}`;
     document.getElementById('shopHandleText').textContent = `@${shopSlug}`;
 
+    let currentToken = null;
+    let isRefreshing = false;
+
     async function loadQr() {
+      if (isRefreshing) return;
+      isRefreshing = true;
       try {
         const res = await fetch(`/api/shop/${encodeURIComponent(shopSlug)}/live-qr`);
         const data = await res.json();
         if (data.success) {
+          currentToken = data.token;
           document.getElementById('qrContainer').innerHTML = data.qrSvg;
           if (data.shop) {
             const name = data.shop.name || 'Shop Counter';
@@ -241,7 +247,29 @@
         }
       } catch (err) {
         console.error('Failed to load QR:', err);
+      } finally {
+        isRefreshing = false;
       }
+    }
+
+    function showClaimCelebration() {
+      const toast = document.createElement('div');
+      toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded-xl shadow-lg text-xs z-50 flex items-center gap-2 animate-bounce';
+      toast.innerHTML = '<span>✓ Stamp Claimed! Updating QR for next customer...</span>';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2500);
+    }
+
+    async function checkCurrentTokenStatus() {
+      if (!currentToken || isRefreshing) return;
+      try {
+        const res = await fetch(`/api/shop/${encodeURIComponent(shopSlug)}/qr-status?token=${encodeURIComponent(currentToken)}`);
+        const status = await res.json();
+        if (status.used) {
+          showClaimCelebration();
+          await loadQr();
+        }
+      } catch (e) {}
     }
 
     function updateTimerDisplay() {
@@ -255,6 +283,7 @@
 
     loadQr();
 
+    // 1. Countdown timer
     timerInterval = setInterval(() => {
       remainingSec--;
       if (remainingSec <= 0) {
@@ -263,6 +292,9 @@
         updateTimerDisplay();
       }
     }, 1000);
+
+    // 2. Strict 1-Customer Single-Use Polling: Updates immediately when scanned!
+    setInterval(checkCurrentTokenStatus, 1500);
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

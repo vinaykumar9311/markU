@@ -3,271 +3,258 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Owner Login · MarkU</title>
+  <title>Owner Login · MarkU Loyalty</title>
+  
   <!-- Progressive Web App (PWA) Manifest & Meta -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#0d0d0e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MarkU">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
 
+  <!-- Typography: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase SDK Compat for SMS OTP -->
+  <!-- Firebase SDK Compat for Google & Email Auth -->
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { 
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .gold-gradient-text {
+      background: linear-gradient(135deg, #f6d365 0%, #d49a37 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #e5a83b 0%, #cb8926 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(203, 137, 38, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #edb449 0%, #d9932d 100%);
+      box-shadow: 0 6px 20px rgba(203, 137, 38, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .dark-glow-bg {
+      background: radial-gradient(circle at 50% 25%, rgba(212, 154, 55, 0.12) 0%, rgba(13, 13, 14, 0.98) 65%, #0d0d0e 100%);
+    }
+
+    .glass-card {
+      background: rgba(20, 20, 24, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .glass-card:hover {
+      border-color: rgba(212, 154, 55, 0.25);
+    }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col justify-between p-4 antialiased">
+<body class="dark-glow-bg bg-[#0d0d0e] text-white min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased selection:bg-amber-500 selection:text-white">
 
-  <!-- Header -->
-  <header class="max-w-md w-full mx-auto pt-6 flex justify-between items-center">
-    <a href="/" class="flex items-center gap-2">
-      <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white font-bold text-sm flex items-center justify-center">M</span>
-      <span class="font-bold text-base tracking-tight text-gray-900">MarkU</span>
+  <!-- Ambient Golden Swirl Background Blur -->
+  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-amber-500/10 blur-[130px] pointer-events-none rounded-full"></div>
+
+  <!-- Header with Brand Logo -->
+  <header class="max-w-md w-full mx-auto pt-4 flex justify-between items-center relative z-10">
+    <a href="/" class="flex items-center gap-0.5 shrink-0" title="MarkU Home">
+      <span class="text-2xl font-black tracking-tight text-white">Mark</span>
+      <span class="text-2xl font-black tracking-tight text-[#d99b3b] relative">
+        U
+        <svg class="w-3.5 h-2 absolute -top-1 right-0 text-[#d99b3b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M1 2C4 7 10 7 13 2" />
+        </svg>
+      </span>
     </a>
-    <a href="/" class="text-xs text-gray-500 hover:text-gray-800">Home &rarr;</a>
+    <a href="/" class="text-xs font-semibold text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+      <span>Back to Home</span>
+      <span>&rarr;</span>
+    </a>
   </header>
 
   <!-- Login Card -->
-  <main class="w-full max-w-md mx-auto my-auto bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+  <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-6 relative z-10">
     
     <div>
-      <h1 class="text-xl font-bold text-gray-900">Shop Owner Login</h1>
-      <p class="text-sm text-gray-500 mt-1">Access your counter display, customer list, and reward rules.</p>
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-3">
+        <span>Owner Portal</span>
+      </div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-white">Welcome back</h1>
+      <p class="text-xs text-gray-400 mt-1">Access your counter QR kiosk, customer stamps, and reward analytics.</p>
     </div>
 
-    <!-- Toggle between Phone and Email -->
-    <div class="flex border-b border-gray-200 text-xs font-semibold">
-      <button id="tabPhone" onclick="switchTab('phone')" class="pb-2.5 px-3 border-b-2 border-indigo-600 text-indigo-600 font-bold transition-all">
-        Mobile Number (OTP)
+    <!-- Error Banner -->
+    <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
+
+    <!-- 1. Google Sign-In Button (Primary & Free) -->
+    <div class="space-y-3">
+      <button type="button" id="googleSignInBtn" onclick="handleGoogleSignIn()"
+        class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-3">
+        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span>Continue with Google</span>
       </button>
-      <button id="tabEmail" onclick="switchTab('email')" class="pb-2.5 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-900 transition-all">
-        Email & Password
-      </button>
+
+      <!-- Divider -->
+      <div class="relative flex items-center justify-center pt-2">
+        <div class="border-t border-gray-800 w-full"></div>
+        <span class="bg-[#141418] px-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 absolute">or sign in with email</span>
+      </div>
     </div>
 
-    <div id="errorBanner" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl p-3"></div>
-
-    <!-- 1. Phone Login Form -->
-    <form id="phoneLoginForm" onsubmit="handleSendPhoneLogin(event)" class="space-y-4">
-      <div id="loginPhoneGroup">
-        <label for="loginPhone" class="block text-xs font-semibold text-gray-700 mb-1">Owner Mobile Number</label>
-        <input type="tel" id="loginPhone" required placeholder="+919876543210"
-          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+    <!-- 2. Email & Password Form -->
+    <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1">
+      <div>
+        <label for="email" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Email Address</label>
+        <input type="email" id="email" required placeholder="owner@store.com"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
       </div>
 
-      <div id="recaptcha-container"></div>
-
-      <div id="loginOtpGroup" class="hidden space-y-2">
-        <label for="loginOtpCode" class="block text-xs font-semibold text-gray-700">6-Digit SMS Verification Code</label>
-        <input type="text" id="loginOtpCode" maxlength="6" placeholder="123456"
-          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-base font-mono text-center tracking-widest text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <div class="flex justify-between items-center text-xs text-gray-500">
-          <span id="loginTargetPhone">Sent to mobile</span>
-          <button type="button" onclick="backToPhoneLogin()" class="text-indigo-600 hover:underline">Change</button>
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="password" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Password</label>
         </div>
-      </div>
-
-      <button type="submit" id="phoneLoginBtn"
-        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-sm">
-        Send Login Code &rarr;
-      </button>
-    </form>
-
-    <!-- 2. Email Login Form (Hidden by default) -->
-    <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="hidden space-y-4">
-      <div>
-        <label for="email" class="block text-xs font-semibold text-gray-700 mb-1.5">Email Address</label>
-        <input type="email" id="email" placeholder="owner@store.com"
-          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-      </div>
-
-      <div>
-        <label for="password" class="block text-xs font-semibold text-gray-700 mb-1.5">Password</label>
-        <input type="password" id="password" placeholder="••••••••"
-          class="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+        <input type="password" id="password" required placeholder="••••••••"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
       </div>
 
       <button type="submit" id="emailLoginBtn"
-        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-sm">
-        Sign In with Email
+        class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
+        Sign In to Cockpit &rarr;
       </button>
     </form>
 
-    <div class="text-center text-xs text-gray-500 pt-3 border-t border-gray-100">
-      Need an account? <a href="/owner/register.html" class="text-indigo-600 font-semibold hover:underline">Enroll your shop</a>
+    <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
+      Need a shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
     </div>
 
   </main>
 
-  <footer class="max-w-md w-full mx-auto pb-6 text-center text-xs text-gray-400">
-    MarkU Loyalty Platform
+  <footer class="max-w-md w-full mx-auto pb-4 text-center text-xs text-gray-500 relative z-10">
+    MarkU Loyalty Platform · Simple, High-Converting Digital Loyalty
   </footer>
 
   <script>
     let firebaseConfig = null;
-    let confirmationResult = null;
-    let recaptchaVerifier = null;
-    let isOtpSent = false;
-    let targetPhone = '';
 
     window.addEventListener('DOMContentLoaded', async () => {
-      const savedPhone = localStorage.getItem('owner_phone');
-      if (savedPhone) {
-        document.getElementById('loginPhone').value = savedPhone;
-      }
-
       try {
         const res = await fetch('/api/config/firebase');
         firebaseConfig = await res.json();
         if (firebaseConfig.isConfigured && window.firebase) {
-          firebase.initializeApp(firebaseConfig);
-          recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-        } else {
-          document.getElementById('phoneLoginBtn').textContent = 'Sign In to Dashboard →';
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
         }
       } catch (err) {
-        console.warn('Firebase config:', err);
+        console.warn('Firebase config note:', err);
       }
     });
 
-    function switchTab(mode) {
-      document.getElementById('errorBanner').classList.add('hidden');
-      if (mode === 'phone') {
-        document.getElementById('phoneLoginForm').classList.remove('hidden');
-        document.getElementById('emailLoginForm').classList.add('hidden');
-        document.getElementById('tabPhone').className = 'pb-2.5 px-3 border-b-2 border-indigo-600 text-indigo-600 font-bold transition-all';
-        document.getElementById('tabEmail').className = 'pb-2.5 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-900 transition-all';
-      } else {
-        document.getElementById('phoneLoginForm').classList.add('hidden');
-        document.getElementById('emailLoginForm').classList.remove('hidden');
-        document.getElementById('tabEmail').className = 'pb-2.5 px-3 border-b-2 border-indigo-600 text-indigo-600 font-bold transition-all';
-        document.getElementById('tabPhone').className = 'pb-2.5 px-3 border-b-2 border-transparent text-gray-500 hover:text-gray-900 transition-all';
-      }
-    }
-
-    function backToPhoneLogin() {
-      isOtpSent = false;
-      document.getElementById('loginPhoneGroup').classList.remove('hidden');
-      document.getElementById('loginOtpGroup').classList.add('hidden');
-      document.getElementById('phoneLoginBtn').textContent = 'Send Login Code →';
-    }
-
-    async function handleSendPhoneLogin(e) {
-      e.preventDefault();
-      document.getElementById('errorBanner').classList.add('hidden');
-
-      if (isOtpSent) {
-        await verifyOtpAndLogin();
-        return;
-      }
-
-      let raw = document.getElementById('loginPhone').value.trim();
-      let cleaned = raw.replace(/[\s\-\(\)]/g, '');
-      if (!cleaned.startsWith('+')) {
-        if (cleaned.length === 10) cleaned = '+91' + cleaned;
-        else cleaned = '+' + cleaned;
-      }
-
-      if (!cleaned || cleaned.length < 10) {
-        showError('Please enter a valid 10-digit mobile number.');
-        return;
-      }
-      targetPhone = cleaned;
-
-      const btn = document.getElementById('phoneLoginBtn');
+    // 1. Google Sign-In Handler (100% Free - Firebase Spark Plan)
+    async function handleGoogleSignIn() {
+      const errorBanner = document.getElementById('errorBanner');
+      errorBanner.classList.add('hidden');
+      const btn = document.getElementById('googleSignInBtn');
+      const originalText = btn.innerHTML;
       btn.disabled = true;
-
-      if (firebaseConfig && firebaseConfig.isConfigured && window.firebase) {
-        btn.textContent = 'Sending SMS...';
-        try {
-          if (!recaptchaVerifier) {
-            recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
-          }
-          confirmationResult = await firebase.auth().signInWithPhoneNumber(targetPhone, recaptchaVerifier);
-          isOtpSent = true;
-          document.getElementById('loginPhoneGroup').classList.add('hidden');
-          document.getElementById('loginOtpGroup').classList.remove('hidden');
-          document.getElementById('loginTargetPhone').textContent = `Code sent to ${targetPhone}`;
-          btn.textContent = 'Verify Code & Sign In →';
-        } catch (err) {
-          console.error(err);
-          const msg = err.message || '';
-          if (window.grecaptcha && recaptchaVerifier) {
-            try { recaptchaVerifier.render().then(w => grecaptcha.reset(w)); } catch (e) {}
-          }
-          showError('Firebase SMS: ' + msg);
-        } finally {
-          btn.disabled = false;
-        }
-      } else {
-        btn.disabled = false;
-        showError('SMS OTP service is currently not configured or loading. Please use Email & Password.');
-      }
-    }
-
-    async function verifyOtpAndLogin() {
-      const code = document.getElementById('loginOtpCode').value.trim();
-      if (!code || code.length < 6) {
-        showError('Please enter the 6-digit verification code.');
-        return;
-      }
-
-      const btn = document.getElementById('phoneLoginBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying Code...';
+      btn.innerHTML = '<span>Signing in with Google...</span>';
 
       try {
-        const userCredential = await confirmationResult.confirm(code);
-        const idToken = await userCredential.user.getIdToken();
-        const phone = targetPhone || userCredential.user.phoneNumber;
+        if (!firebaseConfig || !firebaseConfig.isConfigured || !window.firebase) {
+          throw new Error('Google Sign-In is initializing. Please try again or use Email & Password.');
+        }
 
-        await executeLogin({ phone, firebaseIdToken: idToken });
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        const idToken = await result.user.getIdToken();
+
+        const res = await fetch('/api/owner/google-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ firebaseIdToken: idToken })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          if (data.needsShop) {
+            // New owner with no shop yet -> pass email & name to register flow
+            sessionStorage.setItem('google_id_token', idToken);
+            sessionStorage.setItem('google_email', data.email || result.user.email);
+            sessionStorage.setItem('google_name', data.name || result.user.displayName || '');
+            window.location.href = `/owner/register.html?google=1&email=${encodeURIComponent(data.email || result.user.email)}`;
+            return;
+          }
+
+          localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          window.location.href = '/owner/dashboard.html';
+        } else {
+          showError(data.message || 'Google authentication failed.');
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
       } catch (err) {
-        showError('Invalid verification code.');
+        console.error('Google Sign-In error:', err);
+        showError(err.message || 'Failed to authenticate with Google. You can sign in using email.');
         btn.disabled = false;
-        btn.textContent = 'Verify Code & Sign In →';
+        btn.innerHTML = originalText;
       }
     }
 
+    // 2. Email & Password Handler
     async function handleEmailLogin(e) {
       e.preventDefault();
-      document.getElementById('errorBanner').classList.add('hidden');
+      const errorBanner = document.getElementById('errorBanner');
+      errorBanner.classList.add('hidden');
       const btn = document.getElementById('emailLoginBtn');
       btn.disabled = true;
-      btn.textContent = 'Signing in...';
+      btn.textContent = 'Verifying credentials...';
 
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value.trim();
 
-      await executeLogin({ email, password });
-      btn.disabled = false;
-      btn.textContent = 'Sign In with Email';
-    }
-
-    async function executeLogin(payload) {
       try {
         const res = await fetch('/api/owner/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ email, password })
         });
         const data = await res.json();
         if (data.success) {
           localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
-          if (payload.phone) localStorage.setItem('owner_phone', payload.phone);
           window.location.href = '/owner/dashboard.html';
         } else {
-          showError(data.message || 'Login failed.');
+          showError(data.message || 'Login failed. Please check your email and password.');
+          btn.disabled = false;
+          btn.textContent = 'Sign In to Cockpit →';
         }
       } catch (err) {
-        showError('Connection error. Please try again.');
+        showError('Network error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Sign In to Cockpit →';
       }
     }
 

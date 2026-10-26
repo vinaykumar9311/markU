@@ -28,15 +28,15 @@ DECLARE
     v_time_since_last INTERVAL;
     v_seconds_remaining INTEGER;
 BEGIN
-    -- 1. Check if token has already been burned for this shop & phone
+    -- 1. Check if token has already been burned for this shop (Strict 1-Customer-per-QR)
     IF EXISTS (
         SELECT 1 FROM public.used_tokens 
-        WHERE shop_id = p_shop_id AND phone = p_phone AND token = p_token
+        WHERE shop_id = p_shop_id AND token = p_token
     ) THEN
         RETURN jsonb_build_object(
             'success', false,
             'code', 'QR_ALREADY_USED',
-            'message', 'This specific QR code has already been redeemed. Scan the current counter QR.'
+            'message', 'This QR code has already been scanned. Please scan the new QR on the counter.'
         );
     END IF;
 
