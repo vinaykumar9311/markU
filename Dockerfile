@@ -5,7 +5,7 @@ WORKDIR /app
 RUN chown -R node:node /app
 
 COPY --chown=node:node package.json package-lock.json ./
-RUN npm ci --omit=dev --loglevel=error && npm cache clean --force
+RUN npm ci --omit=dev --silent --no-audit --no-fund && rm -rf /root/.npm
 
 COPY --chown=node:node server.js migrate.js schema.sql ./
 COPY --chown=node:node public ./public
