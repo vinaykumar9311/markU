@@ -1728,8 +1728,9 @@ app.get('/api/live-qr', async (req, res) => {
 const customerOtpStore = new Map();
 
 function signCustomerOtpToken(phone) {
-  const cleanPhone = normalizePhoneNumber(phone);
-  const payload = Buffer.from(JSON.stringify({ phone: cleanPhone, verified: true, exp: Date.now() + 30 * 86400000 })).toString('base64url');
+  const isEmail = typeof phone === 'string' && phone.includes('@');
+  const cleanId = isEmail ? phone.trim().toLowerCase() : normalizePhoneNumber(phone);
+  const payload = Buffer.from(JSON.stringify({ phone: cleanId, email: isEmail ? cleanId : null, verified: true, exp: Date.now() + 30 * 86400000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
@@ -1847,7 +1848,8 @@ app.post('/api/claim-stamp', async (req, res) => {
       customerIdentifier = tokenPayload.phone;
     }
   } else if (phone && phone.trim()) {
-    customerIdentifier = normalizePhoneNumber(phone);
+    const rawP = phone.trim();
+    customerIdentifier = rawP.includes('@') ? rawP.toLowerCase() : normalizePhoneNumber(rawP);
   }
 
   if (!customerIdentifier) {
@@ -1858,6 +1860,7 @@ app.post('/api/claim-stamp', async (req, res) => {
     });
   }
 
+  const verifiedPhone = customerIdentifier;
   const sessionToken = signCustomerOtpToken(customerIdentifier);
 
   // 3. Validate Dynamic Single-Use QR Token using this shop's secret key
