@@ -21,9 +21,8 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase SDK Compat for Google & Email Auth -->
-  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+  <!-- Supabase JS SDK for Google OAuth & Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { 
@@ -116,25 +115,7 @@
     <!-- Error Banner -->
     <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <!-- 1. Google 1-Tap Quick Start -->
-    <div class="space-y-3">
-      <button type="button" id="googleQuickBtn" onclick="handleGoogleRegister()"
-        class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-3">
-        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-        </svg>
-        <span id="googleBtnLabel">Continue with Google (Fastest)</span>
-      </button>
 
-      <!-- Divider -->
-      <div class="relative flex items-center justify-center pt-2">
-        <div class="border-t border-gray-800 w-full"></div>
-        <span class="bg-[#141418] px-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 absolute">or enter business details</span>
-      </div>
-    </div>
 
     <!-- 2. Manual Shop Registration Form -->
     <form id="registerForm" onsubmit="handleRegistrationSubmit(event)" class="space-y-4 pt-1">
@@ -185,8 +166,7 @@
         </div>
       </div>
 
-      <!-- Hidden Google ID Token if authenticated via Google -->
-      <input type="hidden" id="googleTokenInput">
+
 
       <button type="submit" id="mainSubmitBtn"
         class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md mt-2">
@@ -434,37 +414,32 @@
   </footer>
 
   <script>
-    let firebaseConfig = null;
+    let supabaseConfig = null;
+    let supabaseClient = null;
     let selectedPlan = 'trial';
     let registeredShop = null;
     let registeredToken = null;
 
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+    }
+
     window.addEventListener('DOMContentLoaded', async () => {
-      // Check if arriving from Google login redirect
       const urlParams = new URLSearchParams(window.location.search);
-      const googleParam = urlParams.get('google');
       const emailParam = urlParams.get('email');
       if (emailParam) {
         document.getElementById('ownerEmail').value = emailParam;
-        document.getElementById('credentialsSection').classList.add('hidden');
-        document.getElementById('ownerPassword').required = false;
-        document.getElementById('ownerPassword').value = 'GoogleAuth_' + Math.random().toString(36).substring(2);
-      }
-      const cachedToken = sessionStorage.getItem('google_id_token');
-      if (cachedToken) {
-        document.getElementById('googleTokenInput').value = cachedToken;
       }
 
       try {
-        const res = await fetch('/api/config/firebase');
-        firebaseConfig = await res.json();
-        if (firebaseConfig.isConfigured && window.firebase) {
-          if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-          }
+        const res = await fetch('/api/config/supabase');
+        supabaseConfig = await res.json();
+        if (supabaseConfig.isConfigured && window.supabase) {
+          supabaseClient = window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey);
         }
       } catch (err) {
-        console.warn('Firebase config note:', err);
+        console.warn('Supabase config note:', err);
       }
     });
 
@@ -472,47 +447,6 @@
       const name = document.getElementById('shopName').value;
       const slugInput = document.getElementById('slug');
       slugInput.value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    }
-
-    // 1. Google One-Tap Register Flow
-    async function handleGoogleRegister() {
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.classList.add('hidden');
-      const btn = document.getElementById('googleQuickBtn');
-      const originalText = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span>Connecting to Google...</span>';
-
-      try {
-        if (!firebaseConfig || !firebaseConfig.isConfigured || !window.firebase) {
-          throw new Error('Google Sign-In is initializing. Please enter business details below.');
-        }
-
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const result = await firebase.auth().signInWithPopup(provider);
-        const idToken = await result.user.getIdToken();
-
-        document.getElementById('googleTokenInput').value = idToken;
-        document.getElementById('ownerEmail').value = result.user.email;
-        document.getElementById('credentialsSection').classList.add('hidden');
-        document.getElementById('ownerPassword').required = false;
-        document.getElementById('ownerPassword').value = 'GoogleAuth_' + Math.random().toString(36).substring(2);
-
-        // Pre-fill shop name if empty
-        const currentShopName = document.getElementById('shopName').value.trim();
-        if (!currentShopName && result.user.displayName) {
-          document.getElementById('shopName').value = result.user.displayName + "'s Store";
-          autoSlug();
-        }
-
-        btn.innerHTML = `<span class="text-emerald-600 font-bold">✓ Connected as ${escapeHtml(result.user.email)}</span>`;
-      } catch (err) {
-        console.error('Google register error:', err);
-        showError(err.message || 'Could not connect with Google. Please fill in details below.');
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-      }
     }
 
     // 2. Submit Shop Registration Form -> Prompts Subscription Selection Modal
@@ -527,9 +461,7 @@
       const stampsTarget = parseInt(document.getElementById('stampsTarget').value, 10) || 10;
       const email = document.getElementById('ownerEmail').value.trim();
       const password = document.getElementById('ownerPassword').value.trim();
-      const googleToken = document.getElementById('googleTokenInput').value;
-
-      if (!shopName || !slug || !email) {
+      if (!shopName || !slug || !email || !password) {
         showError('Please complete all required fields.');
         return;
       }
@@ -539,33 +471,18 @@
       mainBtn.textContent = 'Enrolling Shop...';
 
       try {
-        let res;
-        // If Google token available, use google-auth endpoint
-        if (googleToken) {
-          res = await fetch('/api/owner/google-auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              firebaseIdToken: googleToken,
-              shopName,
-              slug
-            })
-          });
-        } else {
-          // Standard owner register
-          res = await fetch('/api/owner/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              shopName,
-              slug,
-              rewardDescription: reward,
-              stampsTarget,
-              email,
-              password
-            })
-          });
-        }
+        const res = await fetch('/api/owner/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shopName,
+            slug,
+            rewardDescription: reward,
+            stampsTarget,
+            email,
+            password
+          })
+        });
 
         const data = await res.json();
         if (data.success) {

@@ -21,9 +21,8 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Firebase SDK Compat for Google & Email Auth -->
-  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+  <!-- Supabase JS SDK for Google OAuth & Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { 
@@ -101,30 +100,23 @@
     <!-- Error Banner -->
     <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <!-- 1. Google Sign-In Button (Primary & Free) -->
-    <div class="space-y-3">
-      <button type="button" id="googleSignInBtn" onclick="handleGoogleSignIn()"
-        class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-3">
-        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-        </svg>
-        <span>Continue with Google</span>
-      </button>
+    <!-- Info / Success Banner -->
+    <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-      <!-- Divider -->
-      <div class="relative flex items-center justify-center pt-2">
-        <div class="border-t border-gray-800 w-full"></div>
-        <span class="bg-[#141418] px-3 text-[11px] font-bold uppercase tracking-wider text-gray-500 absolute">or sign in with email</span>
-      </div>
-    </div>
+
 
     <!-- 2. Email & Password Form -->
     <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1">
       <div>
-        <label for="email" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Email Address</label>
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="email" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Email Address</label>
+          <button type="button" id="magicLinkBtn" onclick="handleSendMagicLink()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            <span>Email Me Magic Link</span>
+          </button>
+        </div>
         <input type="email" id="email" required placeholder="owner@store.com"
           class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
       </div>
@@ -154,56 +146,69 @@
   </footer>
 
   <script>
-    let firebaseConfig = null;
+    let supabaseConfig = null;
+    let supabaseClient = null;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+    }
+
+    function showError(msg) {
+      const errorBanner = document.getElementById('errorBanner');
+      const infoBanner = document.getElementById('infoBanner');
+      if (infoBanner) infoBanner.classList.add('hidden');
+      errorBanner.textContent = msg;
+      errorBanner.classList.remove('hidden');
+    }
+
+    function showInfo(msg) {
+      const errorBanner = document.getElementById('errorBanner');
+      const infoBanner = document.getElementById('infoBanner');
+      if (errorBanner) errorBanner.classList.add('hidden');
+      infoBanner.textContent = msg;
+      infoBanner.classList.remove('hidden');
+    }
 
     window.addEventListener('DOMContentLoaded', async () => {
       try {
-        const res = await fetch('/api/config/firebase');
-        firebaseConfig = await res.json();
-        if (firebaseConfig.isConfigured && window.firebase) {
-          if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
+        const res = await fetch('/api/config/supabase');
+        supabaseConfig = await res.json();
+        if (supabaseConfig.isConfigured && window.supabase) {
+          supabaseClient = window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey);
+
+          // Check if returning from Google OAuth or Magic Link
+          const { data: { session }, error } = await supabaseClient.auth.getSession();
+          if (session && session.access_token) {
+            await handleSupabaseAuthSuccess(session);
           }
+
+          supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && session.access_token) {
+              await handleSupabaseAuthSuccess(session);
+            }
+          });
         }
       } catch (err) {
-        console.warn('Firebase config note:', err);
+        console.warn('Supabase auth init note:', err);
       }
     });
 
-    // 1. Google Sign-In Handler (100% Free - Firebase Spark Plan)
-    async function handleGoogleSignIn() {
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.classList.add('hidden');
-      const btn = document.getElementById('googleSignInBtn');
-      const originalText = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span>Signing in with Google...</span>';
+    async function handleSupabaseAuthSuccess(session) {
+      const token = session.access_token;
+      const user = session.user;
 
       try {
-        if (!firebaseConfig || !firebaseConfig.isConfigured || !window.firebase) {
-          throw new Error('Google Sign-In is initializing. Please try again or use Email & Password.');
-        }
-
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const result = await firebase.auth().signInWithPopup(provider);
-        const idToken = await result.user.getIdToken();
-
         const res = await fetch('/api/owner/google-auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ firebaseIdToken: idToken })
+          body: JSON.stringify({ supabaseToken: token })
         });
-
         const data = await res.json();
 
         if (data.success) {
           if (data.needsShop) {
-            // New owner with no shop yet -> pass email & name to register flow
-            sessionStorage.setItem('google_id_token', idToken);
-            sessionStorage.setItem('google_email', data.email || result.user.email);
-            sessionStorage.setItem('google_name', data.name || result.user.displayName || '');
-            window.location.href = `/owner/register.html?google=1&email=${encodeURIComponent(data.email || result.user.email)}`;
+            window.location.href = `/owner/register.html?email=${encodeURIComponent(data.email || user.email)}`;
             return;
           }
 
@@ -211,19 +216,58 @@
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
           window.location.href = '/owner/dashboard.html';
         } else {
-          showError(data.message || 'Google authentication failed.');
-          btn.disabled = false;
-          btn.innerHTML = originalText;
+          showError(data.message || 'Authentication failed. Please sign in with email.');
         }
       } catch (err) {
-        console.error('Google Sign-In error:', err);
-        showError(err.message || 'Failed to authenticate with Google. You can sign in using email.');
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        console.error('Supabase auth completion error:', err);
+        showError(err.message || 'Failed to authenticate. You can sign in using email.');
       }
     }
 
-    // 2. Email & Password Handler
+    // 1. Passwordless Email Magic Link Flow via Supabase
+    async function handleSendMagicLink() {
+      const errorBanner = document.getElementById('errorBanner');
+      const infoBanner = document.getElementById('infoBanner');
+      errorBanner.classList.add('hidden');
+      infoBanner.classList.add('hidden');
+
+      const emailInput = document.getElementById('email');
+      const email = emailInput.value.trim();
+      if (!email || !email.includes('@')) {
+        showError('Please enter a valid email address first.');
+        emailInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('magicLinkBtn');
+      const originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>Sending magic sign-in link...</span>';
+
+      try {
+        if (!supabaseClient) {
+          throw new Error('Supabase Auth is initializing. Please try again in a moment.');
+        }
+
+        const { error } = await supabaseClient.auth.signInWithOtp({
+          email: email,
+          options: {
+            emailRedirectTo: window.location.origin + '/owner/login.html'
+          }
+        });
+        if (error) throw error;
+
+        showInfo(`✓ Magic sign-in link sent to ${email}! Check your inbox and click the link to log in.`);
+        btn.innerHTML = `<span class="text-emerald-400 font-bold">✓ Link Sent to ${escapeHtml(email)}</span>`;
+      } catch (err) {
+        console.error('Send magic link error:', err);
+        showError(err.message || 'Could not send sign-in link. Please check your email and try again.');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+
+    // 4. Email & Password Handler
     async function handleEmailLogin(e) {
       e.preventDefault();
       const errorBanner = document.getElementById('errorBanner');
@@ -256,12 +300,6 @@
         btn.disabled = false;
         btn.textContent = 'Sign In to Cockpit →';
       }
-    }
-
-    function showError(msg) {
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.textContent = msg;
-      errorBanner.classList.remove('hidden');
     }
   </script>
 </body>

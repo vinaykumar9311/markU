@@ -6,8 +6,6 @@ const path = require('path');
 const QRCode = require('qrcode');
 const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getAuth } = require('firebase-admin/auth');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
@@ -111,145 +109,44 @@ function saveLocalDb(data) {
 }
 
 // --------------------------------------------------------------------
-// 2. FIREBASE AUTHENTICATION (CUSTOMER SMS OTP)
+// 2. SUPABASE AUTHENTICATION (GOOGLE OAUTH & TOKEN VERIFICATION)
 // --------------------------------------------------------------------
-let firebaseInitialized = false;
-let firebaseAuth = null;
-const firebaseKeyPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './serviceAccountKey.json');
-
-try {
-  let serviceAccount = null;
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    try {
-      const decoded = process.env.FIREBASE_SERVICE_ACCOUNT_JSON.startsWith('{')
-        ? process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-        : Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_JSON, 'base64').toString('utf8');
-      serviceAccount = JSON.parse(decoded);
-    } catch (parseErr) {
-      console.error('[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', parseErr.message);
-    }
-  } else if (fs.existsSync(firebaseKeyPath)) {
-    serviceAccount = require(firebaseKeyPath);
+async function verifySupabaseToken(token) {
+  if (!token || typeof token !== 'string') {
+    return { success: false, reason: 'Missing Supabase token string' };
   }
-
-  if (serviceAccount) {
-    const fbApp = initializeApp({ credential: cert(serviceAccount) });
-    firebaseAuth = getAuth(fbApp);
-    firebaseInitialized = true;
-    console.log(`[Firebase] Admin initialized for customer Phone OTP (Project: ${serviceAccount.project_id || 'active'}).`);
-  }
-} catch (err) {
-  console.error('[Firebase] Init error:', err.message);
-}
-
-// Google Public X.509 Certificates Cache for Firebase ID Token Verification Fallback
-let googlePublicCertsCache = null;
-let googlePublicCertsExpiresAt = 0;
-
-async function getGooglePublicCerts() {
-  const now = Date.now();
-  if (googlePublicCertsCache && now < googlePublicCertsExpiresAt) {
-    return googlePublicCertsCache;
+  if (!supabase) {
+    return { success: false, reason: 'Supabase client not connected' };
   }
   try {
-    const res = await fetch('https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const cacheControl = res.headers.get('cache-control') || '';
-    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
-    const ttlSeconds = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 3600;
-    googlePublicCertsCache = await res.json();
-    googlePublicCertsExpiresAt = now + (ttlSeconds * 1000);
-    return googlePublicCertsCache;
-  } catch (err) {
-    console.error('[Firebase] Failed to fetch Google public certs:', err.message);
-    return googlePublicCertsCache;
-  }
-}
-
-async function verifyFirebaseTokenWithPublicKeys(idToken) {
-  if (!idToken || typeof idToken !== 'string') return { success: false, reason: 'Missing or invalid token string' };
-  const parts = idToken.split('.');
-  if (parts.length !== 3) return { success: false, reason: 'Malformed JWT structure' };
-
-  try {
-    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
-    if (header.alg !== 'RS256' || !header.kid) {
-      return { success: false, reason: 'Invalid token header algorithm or missing key ID' };
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return { success: false, reason: error ? error.message : 'Invalid Supabase user token' };
     }
-
-    let certs = await getGooglePublicCerts();
-    if (!certs || !certs[header.kid]) {
-      googlePublicCertsExpiresAt = 0;
-      certs = await getGooglePublicCerts();
-    }
-
-    if (!certs || !certs[header.kid]) {
-      return { success: false, reason: 'Public certificate not found for token key ID' };
-    }
-
-    const cert = certs[header.kid];
-    const verifier = crypto.createVerify('RSA-SHA256');
-    verifier.update(`${parts[0]}.${parts[1]}`);
-    const isValid = verifier.verify(crypto.createPublicKey(cert), Buffer.from(parts[2], 'base64url'));
-    if (!isValid) {
-      return { success: false, reason: 'Invalid token cryptographic signature' };
-    }
-
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-    const nowSec = Math.floor(Date.now() / 1000);
-
-    if (payload.exp && payload.exp < nowSec) {
-      return { success: false, reason: 'Firebase token has expired' };
-    }
-    if (payload.auth_time && payload.auth_time > nowSec + 300) {
-      return { success: false, reason: 'Firebase token auth_time is in the future' };
-    }
-
-    const expectedProjectId = process.env.PUBLIC_FIREBASE_PROJECT_ID || 'marku-f73a1';
-    if (payload.aud !== expectedProjectId) {
-      return { success: false, reason: `Token audience (${payload.aud}) does not match project (${expectedProjectId})` };
-    }
-    if (payload.iss !== `https://securetoken.google.com/${expectedProjectId}`) {
-      return { success: false, reason: `Token issuer (${payload.iss}) does not match expected project issuer` };
-    }
-    if (!payload.sub || typeof payload.sub !== 'string') {
-      return { success: false, reason: 'Token contains invalid subject (UID)' };
-    }
-
+    const user = data.user;
     return {
       success: true,
-      uid: payload.sub,
-      phone: payload.phone_number || null,
-      email: payload.email || null,
-      name: payload.name || null
+      uid: user.id,
+      email: user.email || null,
+      phone: user.phone || null,
+      name: user.user_metadata?.full_name || user.user_metadata?.name || null
     };
   } catch (err) {
     return { success: false, reason: `Token verification error: ${err.message}` };
   }
 }
 
-async function verifyFirebaseToken(idToken) {
-  if (firebaseInitialized && firebaseAuth) {
-    try {
-      const decoded = await firebaseAuth.verifyIdToken(idToken);
-      return {
-        success: true,
-        uid: decoded.uid,
-        phone: decoded.phone_number || null,
-        email: decoded.email || null,
-        name: decoded.name || null
-      };
-    } catch (err) {
-      console.warn('[Firebase] Admin SDK verification failed, attempting public key verification:', err.message);
-    }
-  }
-  return await verifyFirebaseTokenWithPublicKeys(idToken);
-}
+// Backwards-compatible alias for any residual callers
+const verifyFirebaseToken = verifySupabaseToken;
 
 
 app.set('trust proxy', 1);
-// CSP is disabled for now because the frontend uses inline scripts / CDN assets (tracked in plan, Phase 1).
-app.use(helmet({ contentSecurityPolicy: false }));
+// CSP is disabled for now because the frontend uses inline scripts / CDN assets.
+// COOP set to same-origin-allow-popups to allow Firebase Google Auth popup communication.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
+}));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -267,27 +164,27 @@ app.get('/health', (req, res) => {
 
 app.get('/ready', (req, res) => {
   const isDbReady = !!supabase;
-  const isFirebaseReady = firebaseInitialized || !!(process.env.PUBLIC_FIREBASE_PROJECT_ID || process.env.PUBLIC_FIREBASE_API_KEY);
   return res.status(200).json({
-    ready: true,
+    ready: isDbReady,
     supabaseConnected: isDbReady,
-    firebaseConnected: isFirebaseReady,
-    firebaseAuthMode: firebaseInitialized ? 'admin-sdk' : 'public-jwt-verification'
+    authProvider: 'supabase'
   });
 });
 
-// Endpoint providing Firebase Client Config to frontend (scan.html)
-app.get('/api/config/firebase', (req, res) => {
-  const isConfigured = !!(process.env.PUBLIC_FIREBASE_API_KEY && !process.env.PUBLIC_FIREBASE_API_KEY.includes('...'));
+// Endpoint providing Supabase Client Config to frontend (login, register, scan, card)
+app.get('/api/config/supabase', (req, res) => {
+  const url = process.env.SUPABASE_URL || 'https://hzcgxiflvtinwguibyfi.supabase.co';
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_mAu8qPZ6sT05_qGgYd1unQ_-_NHa4Mm';
   return res.json({
-    isConfigured,
-    apiKey: process.env.PUBLIC_FIREBASE_API_KEY || '',
-    authDomain: process.env.PUBLIC_FIREBASE_AUTH_DOMAIN || '',
-    projectId: process.env.PUBLIC_FIREBASE_PROJECT_ID || '',
-    storageBucket: process.env.PUBLIC_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: process.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: process.env.PUBLIC_FIREBASE_APP_ID || ''
+    isConfigured: !!(url && anonKey),
+    url,
+    anonKey
   });
+});
+
+// Legacy alias to safely handle any cached client requests
+app.get('/api/config/firebase', (req, res) => {
+  return res.json({ isConfigured: false, removed: true, useSupabase: true });
 });
 
 const bcrypt = require('bcryptjs');
@@ -427,35 +324,35 @@ function verifyOwnerToken(tokenStr) {
   }
 }
 
-// Register New Shop Owner (Phone / Firebase OTP or Email)
+// Register New Shop Owner (Supabase Auth / Google / Email)
 app.post('/api/owner/register', async (req, res) => {
-  const { phone, firebaseIdToken, email, password, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
+  const { phone, firebaseIdToken, supabaseToken, email, password, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
   if (!shopName || !shopName.trim()) {
     return res.status(400).json({ success: false, message: 'Shop name is required.' });
   }
 
   let verifiedPhone = null;
   let ownerEmail = null;
+  const authToken = supabaseToken || firebaseIdToken;
 
-  // Phone identity is accepted ONLY from a verified Firebase ID token. A raw `phone` field is ignored.
-  if (firebaseIdToken) {
-    if (!firebaseInitialized) {
-      return res.status(503).json({ success: false, message: 'Phone verification is not available right now.' });
+  if (authToken) {
+    const authResult = await verifySupabaseToken(authToken);
+    if (!authResult.success) {
+      return res.status(401).json({ success: false, message: 'Invalid authentication: ' + (authResult.reason || 'Token invalid') });
     }
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
-    if (!authResult.success || !authResult.phone) {
-      return res.status(401).json({ success: false, message: 'Invalid phone OTP verification.' });
-    }
-    verifiedPhone = authResult.phone;
+    if (authResult.email) ownerEmail = authResult.email.trim().toLowerCase();
+    if (authResult.phone) verifiedPhone = authResult.phone;
   }
 
-  if (verifiedPhone) {
+  if (ownerEmail) {
+    // verified via Supabase Google / Email
+  } else if (verifiedPhone) {
     const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
     ownerEmail = email ? email.trim().toLowerCase() : `${cleanDigits}@owner.marku.local`;
   } else if (email && email.trim() && password && password.trim()) {
     ownerEmail = email.trim().toLowerCase();
   } else {
-    return res.status(400).json({ success: false, message: 'Mobile number (with OTP) or email and password required.' });
+    return res.status(400).json({ success: false, message: 'Google authentication or email and password required.' });
   }
 
   const db = loadLocalDb();
@@ -786,15 +683,16 @@ app.post('/api/owner/login', async (req, res) => {
 });
 
 // --------------------------------------------------------------------
-// GOOGLE AUTH FOR SHOP OWNERS (100% Free Firebase Google Auth)
+// GOOGLE AUTH FOR SHOP OWNERS (Supabase Google OAuth)
 // --------------------------------------------------------------------
 app.post('/api/owner/google-auth', async (req, res) => {
-  const { firebaseIdToken, shopName, slug } = req.body;
-  if (!firebaseIdToken) {
-    return res.status(400).json({ success: false, message: 'Missing Google ID token.' });
+  const { firebaseIdToken, supabaseToken, token, shopName, slug } = req.body;
+  const authToken = supabaseToken || token || firebaseIdToken;
+  if (!authToken) {
+    return res.status(400).json({ success: false, message: 'Missing Google authentication token.' });
   }
 
-  const authResult = await verifyFirebaseToken(firebaseIdToken);
+  const authResult = await verifySupabaseToken(authToken);
   if (!authResult.success || !authResult.email) {
     return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (authResult.reason || 'Invalid token') });
   }
@@ -1761,15 +1659,16 @@ app.post('/api/customer/verify-session', (req, res) => {
   return res.json({ success: true, valid: true, identifier: verified.phone, email: verified.phone });
 });
 
-// Customer Google Authentication endpoint (100% Free Firebase Spark Auth)
+// Customer Google Authentication endpoint (Supabase Google Auth)
 app.post('/api/customer/google-auth', async (req, res) => {
-  const { firebaseIdToken, email, name } = req.body;
+  const { firebaseIdToken, supabaseToken, token, email, name } = req.body;
+  const authToken = supabaseToken || token || firebaseIdToken;
 
   let customerEmail = email ? email.trim().toLowerCase() : '';
   let customerName = name ? name.trim() : '';
 
-  if (firebaseIdToken) {
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
+  if (authToken) {
+    const authResult = await verifySupabaseToken(authToken);
     if (!authResult.success) {
       return res.status(401).json({ success: false, message: authResult.reason || 'Invalid Google authentication' });
     }
@@ -1792,11 +1691,12 @@ app.post('/api/customer/google-auth', async (req, res) => {
 });
 
 app.post('/api/customer/verify-otp', async (req, res) => {
-  // Maintained for backward compatibility, automatically accepts Google tokens
-  const { firebaseIdToken, phone, email } = req.body;
+  // Maintained for backward compatibility, automatically accepts Supabase & Google tokens
+  const { firebaseIdToken, supabaseToken, phone, email } = req.body;
+  const authToken = supabaseToken || firebaseIdToken;
   const targetId = email || phone;
-  if (firebaseIdToken) {
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
+  if (authToken) {
+    const authResult = await verifySupabaseToken(authToken);
     if (authResult.success) {
       const finalId = authResult.email || authResult.phone || targetId;
       return res.json({
@@ -1823,7 +1723,8 @@ app.post('/api/customer/verify-otp', async (req, res) => {
 // 5. CUSTOMER STAMP CLAIM (STRICT SHOP DATA ISOLATION & OTP VERIFICATION)
 // --------------------------------------------------------------------
 app.post('/api/claim-stamp', async (req, res) => {
-  const { shopSlug, token, phone, otp, firebaseIdToken, verificationToken, name } = req.body;
+  const { shopSlug, token, phone, otp, firebaseIdToken, supabaseToken, verificationToken, name } = req.body;
+  const authToken = supabaseToken || firebaseIdToken;
 
   // 1. Resolve Shop strictly with fallback resolver
   const shop = await resolveShopBySlug(shopSlug);
@@ -1831,12 +1732,12 @@ app.post('/api/claim-stamp', async (req, res) => {
     return res.status(404).json({ success: false, message: 'Shop not found.' });
   }
 
-  // 2. Validate Customer Identity (Google Auth token, Firebase token, or signed session token)
+  // 2. Validate Customer Identity (Google Auth token, Supabase token, or signed session token)
   let customerIdentifier = null;
   let customerName = name ? name.trim() : '';
 
-  if (firebaseIdToken) {
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
+  if (authToken) {
+    const authResult = await verifySupabaseToken(authToken);
     if (!authResult.success) {
       return res.status(401).json({ success: false, message: 'Invalid authentication: ' + (authResult.reason || 'Token invalid') });
     }
@@ -2310,5 +2211,6 @@ module.exports = {
   loadLocalDb,
   saveLocalDb,
   resolveShopBySlug,
+  verifySupabaseToken,
   verifyFirebaseToken
 };
