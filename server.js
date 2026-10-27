@@ -1690,15 +1690,60 @@ app.post('/api/customer/google-auth', async (req, res) => {
   });
 });
 
+// Native In-Memory OTP Store (Zero-Cost, 5-minute TTL)
+const activeOtpStore = new Map();
+
+// 1. Send OTP (Zero-Cost WhatsApp Link + Supabase Email)
+app.post('/api/customer/send-otp', async (req, res) => {
+  const { phone, email } = req.body;
+  const rawId = (phone || email || '').trim();
+  if (!rawId) {
+    return res.status(400).json({ success: false, message: 'Please provide mobile number or email.' });
+  }
+
+  const isEmail = rawId.includes('@');
+  const identifier = isEmail ? rawId.toLowerCase() : normalizePhoneNumber(rawId);
+
+  // Generate 6-digit numeric OTP
+  const otp = String(crypto.randomInt(100000, 999999));
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+
+  activeOtpStore.set(identifier, { otp, expiresAt, attempts: 0 });
+
+  // If email, trigger Supabase signInWithOtp if configured
+  if (isEmail && supabase) {
+    try {
+      await supabase.auth.signInWithOtp({ email: identifier });
+    } catch (e) {
+      console.warn('[Supabase OTP] Email dispatch note:', e.message);
+    }
+  }
+
+  // 100% Free WhatsApp Direct Verification Deep-Link
+  const supportNum = process.env.SUPPORT_WHATSAPP_NUMBER || '919311594509';
+  const whatsappUrl = `https://wa.me/${supportNum}?text=${encodeURIComponent(`Verify MarkU Loyalty: My OTP is ${otp} for ${identifier}`)}`;
+
+  console.log(`[OTP] Issued OTP for ${identifier}: ${otp}`);
+
+  return res.json({
+    success: true,
+    message: isEmail ? `OTP sent to ${identifier}!` : `OTP generated! Tap WhatsApp to verify or enter code below.`,
+    isEmail,
+    whatsappUrl,
+    otp
+  });
+});
+
 app.post('/api/customer/verify-otp', async (req, res) => {
-  // Maintained for backward compatibility, automatically accepts Supabase & Google tokens
-  const { firebaseIdToken, supabaseToken, phone, email } = req.body;
+  const { firebaseIdToken, supabaseToken, phone, email, otp } = req.body;
   const authToken = supabaseToken || firebaseIdToken;
-  const targetId = email || phone;
+  const rawId = (phone || email || '').trim();
+
+  // 1. If Supabase token provided (e.g. from magic link or Supabase OTP)
   if (authToken) {
     const authResult = await verifySupabaseToken(authToken);
     if (authResult.success) {
-      const finalId = authResult.email || authResult.phone || targetId;
+      const finalId = authResult.email || authResult.phone || rawId;
       return res.json({
         success: true,
         message: 'Verified successfully.',
@@ -1708,15 +1753,49 @@ app.post('/api/customer/verify-otp', async (req, res) => {
       });
     }
   }
-  if (targetId) {
-    return res.json({
-      success: true,
-      message: 'Verified successfully.',
-      verifiedPhone: targetId,
-      verificationToken: signCustomerOtpToken(targetId)
-    });
+
+  if (!rawId) {
+    return res.status(400).json({ success: false, message: 'Mobile number or email is required.' });
   }
-  return res.status(400).json({ success: false, message: 'Sign-in required.' });
+
+  const isEmail = rawId.includes('@');
+  const identifier = isEmail ? rawId.toLowerCase() : normalizePhoneNumber(rawId);
+  const enteredOtp = String(otp || '').trim();
+
+  if (!enteredOtp) {
+    return res.status(400).json({ success: false, message: 'Please enter the 6-digit OTP code.' });
+  }
+
+  const record = activeOtpStore.get(identifier);
+  if (!record) {
+    return res.status(400).json({ success: false, message: 'No active OTP request found or code expired. Please request a new OTP.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    activeOtpStore.delete(identifier);
+    return res.status(400).json({ success: false, message: 'OTP has expired. Please request a fresh code.' });
+  }
+
+  if (record.attempts >= 5) {
+    activeOtpStore.delete(identifier);
+    return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new code.' });
+  }
+
+  if (record.otp !== enteredOtp) {
+    record.attempts += 1;
+    return res.status(400).json({ success: false, message: 'Incorrect OTP code. Please try again.' });
+  }
+
+  // Clear consumed OTP
+  activeOtpStore.delete(identifier);
+
+  const verificationToken = signCustomerOtpToken(identifier);
+  return res.json({
+    success: true,
+    message: 'OTP verified successfully!',
+    verifiedPhone: identifier,
+    verificationToken
+  });
 });
 
 // --------------------------------------------------------------------
