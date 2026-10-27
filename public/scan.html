@@ -118,12 +118,15 @@
         <p id="regShopSub" class="text-xs text-gray-400 mt-1">Enter your email or mobile number to collect your stamp.</p>
       </div>
 
-      <!-- 2. Direct Email / Phone Form (No SMS needed) -->
-      <form id="regForm" onsubmit="handleDirectClaim(event)" class="space-y-3.5 pt-1">
+      <!-- STEP 1: Phone / Email Input Form -->
+      <form id="regForm" onsubmit="handleRequestOtp(event)" class="space-y-3.5 pt-1">
         <div>
-          <label for="regEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Email or Mobile</label>
-          <input type="text" id="regEmail" required placeholder="you@gmail.com or 9876543210"
-            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
+          <label for="regEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Mobile Number or WhatsApp</label>
+          <div class="relative">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs">📱</span>
+            <input type="text" id="regEmail" required placeholder="9876543210 or email"
+              class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
+          </div>
         </div>
 
         <div>
@@ -133,10 +136,51 @@
         </div>
 
         <button type="submit" id="mainSubmitBtn"
-          class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-          Collect Stamp &rarr;
+          class="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+          <span id="submitBtnText">Get WhatsApp OTP & Collect Stamp &rarr;</span>
         </button>
+
+        <div class="text-center pt-1">
+          <button type="button" onclick="handleDirectBypass()" class="text-[11px] text-gray-500 hover:text-gray-300 underline">
+            Quick 1-tap claim without OTP &rarr;
+          </button>
+        </div>
       </form>
+
+      <!-- STEP 2: OTP Verification Card (Slide-In) -->
+      <div id="otpSection" class="hidden space-y-4 pt-2 border-t border-gray-800">
+        <div class="text-center space-y-1">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+            <span>✓ OTP Dispatched (100% Free)</span>
+          </div>
+          <p id="otpPromptText" class="text-xs text-gray-300">Open WhatsApp to receive code, or enter your 6-digit code below.</p>
+        </div>
+
+        <!-- WhatsApp 1-Tap Link Button -->
+        <a id="whatsappIntentBtn" href="#" target="_blank"
+          class="w-full bg-[#25D366]/20 hover:bg-[#25D366]/30 text-emerald-300 border border-emerald-500/40 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+          <span>Open in WhatsApp to Confirm &rarr;</span>
+        </a>
+
+        <!-- 6-Digit OTP Input -->
+        <div class="space-y-1.5">
+          <label for="otpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
+          <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •"
+            class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <button type="button" onclick="handleVerifyAndClaim()" id="verifyOtpBtn"
+          class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
+          Verify OTP & Collect Stamp &rarr;
+        </button>
+
+        <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+          <button type="button" onclick="handleRequestOtp()" class="hover:text-amber-400 underline">Resend OTP</button>
+          <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile / Email</button>
+        </div>
+      </div>
 
     </div>
 
@@ -214,9 +258,136 @@
       } catch (e) {}
     }
 
-    // 1. Direct Email / Phone Claim
+    let currentOtpTarget = '';
+    let currentOtpName = '';
+
+    // 1. Request OTP (WhatsApp link + Free Supabase Email)
+    async function handleRequestOtp(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('regEmail').value.trim();
+      const name = document.getElementById('regName').value.trim();
+
+      if (!input) {
+        showError('Please enter your mobile number or email.');
+        return;
+      }
+
+      currentOtpTarget = input;
+      currentOtpName = name;
+
+      const btn = document.getElementById('mainSubmitBtn');
+      const btnText = document.getElementById('submitBtnText');
+      btn.disabled = true;
+      btnText.textContent = 'Generating OTP...';
+
+      try {
+        const res = await fetch('/api/customer/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: input, email: input })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp OTP & Collect Stamp →';
+
+        if (data.success) {
+          // Slide in OTP card
+          document.getElementById('regForm').classList.add('hidden');
+          document.getElementById('otpSection').classList.remove('hidden');
+
+          if (data.whatsappUrl) {
+            document.getElementById('whatsappIntentBtn').href = data.whatsappUrl;
+          }
+
+          if (data.otp) {
+            document.getElementById('otpCodeInput').value = data.otp;
+          }
+
+          document.getElementById('otpPromptText').textContent = data.message || 'Confirm your 6-digit verification code below.';
+          document.getElementById('otpCodeInput').focus();
+        } else {
+          showError(data.message || 'Could not send verification code.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp OTP & Collect Stamp →';
+        showError('Network error. Tap Quick 1-tap claim below.');
+      }
+    }
+
+    // 2. Verify OTP & Claim Stamp
+    async function handleVerifyAndClaim() {
+      const code = document.getElementById('otpCodeInput').value.trim();
+      if (!code || code.length < 4) {
+        showError('Please enter the 6-digit OTP code.');
+        return;
+      }
+
+      const btn = document.getElementById('verifyOtpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Verifying Code & Claiming Stamp...';
+
+      try {
+        const verifyRes = await fetch('/api/customer/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: currentOtpTarget,
+            email: currentOtpTarget,
+            otp: code
+          })
+        });
+        const verifyData = await verifyRes.json();
+
+        if (verifyData.success && verifyData.verificationToken) {
+          localStorage.setItem('loyalty_token', verifyData.verificationToken);
+          localStorage.setItem('loyalty_email', verifyData.verifiedPhone);
+          localStorage.setItem('loyalty_phone', verifyData.verifiedPhone);
+
+          // Now claim stamp with verified token
+          const res = await fetch('/api/claim-stamp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              shopSlug,
+              token,
+              verificationToken: verifyData.verificationToken,
+              phone: verifyData.verifiedPhone,
+              name: currentOtpName
+            })
+          });
+          const claimData = await res.json();
+          handleClaimResponse(claimData, verifyData.verifiedPhone, currentOtpName);
+        } else {
+          showError(verifyData.message || 'Invalid OTP code. Please try again.');
+          btn.disabled = false;
+          btn.textContent = 'Verify OTP & Collect Stamp →';
+        }
+      } catch (err) {
+        showError('Network error verifying code.');
+        btn.disabled = false;
+        btn.textContent = 'Verify OTP & Collect Stamp →';
+      }
+    }
+
+    function cancelOtpStep() {
+      document.getElementById('otpSection').classList.add('hidden');
+      document.getElementById('regForm').classList.remove('hidden');
+    }
+
+    function handleDirectBypass() {
+      const input = document.getElementById('regEmail').value.trim();
+      if (!input) {
+        showError('Please enter your mobile number or email above.');
+        document.getElementById('regEmail').focus();
+        return;
+      }
+      handleDirectClaim({ preventDefault: () => {} });
+    }
+
+    // 3. Direct Email / Phone Claim (Instant Bypass)
     async function handleDirectClaim(e) {
-      e.preventDefault();
+      if (e) e.preventDefault();
       const input = document.getElementById('regEmail').value.trim();
       const name = document.getElementById('regName').value.trim();
 
