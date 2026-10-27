@@ -3,81 +3,45 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Owner Login · MarkU Loyalty</title>
-  
-  <!-- Progressive Web App (PWA) Manifest & Meta -->
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0d0d0e">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MarkU">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
-
-  <!-- Typography: Plus Jakarta Sans -->
+  <title>Shop Owner Sign In · Phone OTP · MarkU</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Supabase JS SDK for Google OAuth & Auth -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    body { 
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      -webkit-font-smoothing: antialiased;
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: radial-gradient(circle at top center, #1b1b22 0%, #0d0d10 100%);
+      min-height: 100vh;
+      color: #f3f4f6;
     }
-    .font-mono { font-family: 'JetBrains Mono', monospace; }
-
-    .gold-gradient-text {
-      background: linear-gradient(135deg, #f6d365 0%, #d49a37 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .btn-gold {
-      background: linear-gradient(135deg, #e5a83b 0%, #cb8926 100%);
-      color: #ffffff;
-      box-shadow: 0 4px 14px rgba(203, 137, 38, 0.35);
-      transition: all 0.2s ease;
-    }
-    .btn-gold:hover {
-      background: linear-gradient(135deg, #edb449 0%, #d9932d 100%);
-      box-shadow: 0 6px 20px rgba(203, 137, 38, 0.45);
-      transform: translateY(-1px);
-    }
-
-    .dark-glow-bg {
-      background: radial-gradient(circle at 50% 25%, rgba(212, 154, 55, 0.12) 0%, rgba(13, 13, 14, 0.98) 65%, #0d0d0e 100%);
-    }
-
     .glass-card {
       background: rgba(20, 20, 24, 0.85);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
-    .glass-card:hover {
-      border-color: rgba(212, 154, 55, 0.25);
+    .btn-gold {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: #000;
+      box-shadow: 0 4px 20px rgba(245, 158, 11, 0.25);
+    }
+    .btn-gold:hover {
+      background: linear-gradient(135deg, #fbbf24 0%, #b45309 100%);
+      box-shadow: 0 6px 24px rgba(245, 158, 11, 0.35);
     }
   </style>
 </head>
-<body class="dark-glow-bg bg-[#0d0d0e] text-white min-h-screen flex flex-col justify-between p-4 sm:p-6 antialiased selection:bg-amber-500 selection:text-white">
+<body class="flex flex-col min-h-screen px-4 py-6 justify-between relative overflow-x-hidden">
 
-  <!-- Ambient Golden Swirl Background Blur -->
-  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-amber-500/10 blur-[130px] pointer-events-none rounded-full"></div>
-
-  <!-- Header with Brand Logo -->
-  <header class="max-w-md w-full mx-auto pt-4 flex justify-between items-center relative z-10">
-    <a href="/" class="flex items-center gap-0.5 shrink-0" title="MarkU Home">
-      <span class="text-2xl font-black tracking-tight text-white">Mark</span>
-      <span class="text-2xl font-black tracking-tight text-[#d99b3b] relative">
-        U
-        <svg class="w-3.5 h-2 absolute -top-1 right-0 text-[#d99b3b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <path d="M1 2C4 7 10 7 13 2" />
-        </svg>
+  <!-- Header -->
+  <header class="w-full max-w-md mx-auto flex items-center justify-between py-2 relative z-10">
+    <a href="/" class="flex items-center gap-2">
+      <span class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center font-black text-[#e5a83b] text-base tracking-wider">
+        M
+      </span>
+      <span class="text-lg font-black tracking-tight text-white flex items-center gap-1">
+        <span>Mark</span><span class="text-[#e5a83b]">U</span>
       </span>
     </a>
     <a href="/" class="text-xs font-semibold text-gray-400 hover:text-white transition-colors flex items-center gap-1">
@@ -91,52 +55,72 @@
     
     <div>
       <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-3">
-        <span>Owner Portal</span>
+        <span>Owner Cockpit</span>
       </div>
-      <h1 class="text-2xl font-extrabold tracking-tight text-white">Welcome back</h1>
-      <p class="text-xs text-gray-400 mt-1">Access your counter QR kiosk, customer stamps, and reward analytics.</p>
+      <h1 class="text-2xl font-extrabold tracking-tight text-white">Owner Sign In</h1>
+      <p class="text-xs text-gray-400 mt-1">Sign in with your mobile number to manage your counter kiosk and rewards.</p>
     </div>
 
     <!-- Error Banner -->
     <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <!-- Info / Success Banner -->
+    <!-- Info Banner -->
     <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-
-
-    <!-- 2. Email & Password Form -->
-    <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1">
+    <!-- STEP 1: Phone Input Form -->
+    <form id="phoneForm" onsubmit="handleSendPhoneOtp(event)" class="space-y-4 pt-1">
       <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <label for="email" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Email Address</label>
-          <button type="button" id="magicLinkBtn" onclick="handleSendMagicLink()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold transition-colors flex items-center gap-1">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-            </svg>
-            <span>Email Me Magic Link</span>
-          </button>
+        <label for="ownerPhone" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Mobile Number</label>
+        <div class="relative">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs font-bold">📱 +91</span>
+          <input type="tel" id="ownerPhone" required placeholder="9876543210" maxlength="14"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-16 pr-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
         </div>
-        <input type="email" id="email" required placeholder="owner@store.com"
-          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
       </div>
 
-      <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <label for="password" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Password</label>
-        </div>
-        <input type="password" id="password" required placeholder="••••••••"
-          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
-      </div>
-
-      <button type="submit" id="emailLoginBtn"
-        class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-        Sign In to Cockpit &rarr;
+      <button type="submit" id="sendOtpBtn"
+        class="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+        <span id="sendOtpBtnText">Get WhatsApp OTP & Sign In &rarr;</span>
       </button>
     </form>
 
+    <!-- STEP 2: OTP Verification Card (Hidden initially) -->
+    <div id="otpSection" class="hidden space-y-4 pt-1">
+      <div class="text-center space-y-1">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+          <span>✓ OTP Dispatched (100% Free)</span>
+        </div>
+        <p id="otpPromptText" class="text-xs text-gray-300">Open WhatsApp or enter your 6-digit verification code.</p>
+      </div>
+
+      <!-- WhatsApp 1-Tap Link Button -->
+      <a id="whatsappIntentBtn" href="#" target="_blank"
+        class="w-full bg-[#25D366]/20 hover:bg-[#25D366]/30 text-emerald-300 border border-emerald-500/40 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+        <span>Open in WhatsApp to Confirm &rarr;</span>
+      </a>
+
+      <!-- 6-Digit OTP Input -->
+      <div class="space-y-1.5">
+        <label for="otpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
+        <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •"
+          class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+
+      <button type="button" onclick="handleVerifyOtpAndLogin()" id="verifyOtpBtn"
+        class="w-full btn-gold font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
+        Verify OTP & Open Cockpit &rarr;
+      </button>
+
+      <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+        <button type="button" onclick="handleSendPhoneOtp()" class="hover:text-amber-400 underline">Resend OTP</button>
+        <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile Number</button>
+      </div>
+    </div>
+
     <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
-      Need a shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
+      Need a new shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
     </div>
 
   </main>
@@ -146,13 +130,7 @@
   </footer>
 
   <script>
-    let supabaseConfig = null;
-    let supabaseClient = null;
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
-    }
+    let activePhone = '';
 
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
@@ -170,45 +148,82 @@
       infoBanner.classList.remove('hidden');
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const res = await fetch('/api/config/supabase');
-        supabaseConfig = await res.json();
-        if (supabaseConfig.isConfigured && window.supabase) {
-          supabaseClient = window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey);
+    // Step 1: Send Owner Phone OTP
+    async function handleSendPhoneOtp(e) {
+      if (e) e.preventDefault();
+      const phoneInput = document.getElementById('ownerPhone');
+      const phone = phoneInput.value.trim();
 
-          // Check if returning from Google OAuth or Magic Link
-          const { data: { session }, error } = await supabaseClient.auth.getSession();
-          if (session && session.access_token) {
-            await handleSupabaseAuthSuccess(session);
-          }
-
-          supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session && session.access_token) {
-              await handleSupabaseAuthSuccess(session);
-            }
-          });
-        }
-      } catch (err) {
-        console.warn('Supabase auth init note:', err);
+      if (!phone || phone.length < 8) {
+        showError('Please enter a valid mobile number.');
+        phoneInput.focus();
+        return;
       }
-    });
 
-    async function handleSupabaseAuthSuccess(session) {
-      const token = session.access_token;
-      const user = session.user;
+      activePhone = phone;
+      const btn = document.getElementById('sendOtpBtn');
+      const btnText = document.getElementById('sendOtpBtnText');
+      btn.disabled = true;
+      btnText.textContent = 'Generating OTP...';
 
       try {
-        const res = await fetch('/api/owner/google-auth', {
+        const res = await fetch('/api/owner/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supabaseToken: token })
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp OTP & Sign In →';
+
+        if (data.success) {
+          document.getElementById('phoneForm').classList.add('hidden');
+          document.getElementById('otpSection').classList.remove('hidden');
+
+          if (data.whatsappUrl) {
+            document.getElementById('whatsappIntentBtn').href = data.whatsappUrl;
+          }
+          if (data.otp) {
+            document.getElementById('otpCodeInput').value = data.otp;
+          }
+          document.getElementById('otpPromptText').textContent = data.message || `Confirm code for ${data.phone || phone}`;
+          document.getElementById('otpCodeInput').focus();
+        } else {
+          showError(data.message || 'Could not send verification OTP.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp OTP & Sign In →';
+        showError('Connection error. Please try again.');
+      }
+    }
+
+    // Step 2: Verify Phone OTP & Open Dashboard
+    async function handleVerifyOtpAndLogin() {
+      const otp = document.getElementById('otpCodeInput').value.trim();
+      if (!otp || otp.length < 4) {
+        showError('Please enter the 6-digit OTP code.');
+        return;
+      }
+
+      const btn = document.getElementById('verifyOtpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Verifying Code & Logging In...';
+
+      try {
+        const res = await fetch('/api/owner/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: activePhone, otp })
         });
         const data = await res.json();
 
         if (data.success) {
-          if (data.needsShop) {
-            window.location.href = `/owner/register.html?email=${encodeURIComponent(data.email || user.email)}`;
+          if (data.isNew) {
+            // New owner: redirect to register page with phone and regToken!
+            sessionStorage.setItem('owner_reg_token', data.regToken || '');
+            sessionStorage.setItem('owner_reg_phone', data.phone || activePhone);
+            window.location.href = `/owner/register.html?phone=${encodeURIComponent(data.phone || activePhone)}&verified=1`;
             return;
           }
 
@@ -216,90 +231,20 @@
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
           window.location.href = '/owner/dashboard.html';
         } else {
-          showError(data.message || 'Authentication failed. Please sign in with email.');
-        }
-      } catch (err) {
-        console.error('Supabase auth completion error:', err);
-        showError(err.message || 'Failed to authenticate. You can sign in using email.');
-      }
-    }
-
-    // 1. Passwordless Email Magic Link Flow via Supabase
-    async function handleSendMagicLink() {
-      const errorBanner = document.getElementById('errorBanner');
-      const infoBanner = document.getElementById('infoBanner');
-      errorBanner.classList.add('hidden');
-      infoBanner.classList.add('hidden');
-
-      const emailInput = document.getElementById('email');
-      const email = emailInput.value.trim();
-      if (!email || !email.includes('@')) {
-        showError('Please enter a valid email address first.');
-        emailInput.focus();
-        return;
-      }
-
-      const btn = document.getElementById('magicLinkBtn');
-      const originalHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span>Sending magic sign-in link...</span>';
-
-      try {
-        if (!supabaseClient) {
-          throw new Error('Supabase Auth is initializing. Please try again in a moment.');
-        }
-
-        const { error } = await supabaseClient.auth.signInWithOtp({
-          email: email,
-          options: {
-            emailRedirectTo: window.location.origin + '/owner/login.html'
-          }
-        });
-        if (error) throw error;
-
-        showInfo(`✓ Magic sign-in link sent to ${email}! Check your inbox and click the link to log in.`);
-        btn.innerHTML = `<span class="text-emerald-400 font-bold">✓ Link Sent to ${escapeHtml(email)}</span>`;
-      } catch (err) {
-        console.error('Send magic link error:', err);
-        showError(err.message || 'Could not send sign-in link. Please check your email and try again.');
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
-    }
-
-    // 4. Email & Password Handler
-    async function handleEmailLogin(e) {
-      e.preventDefault();
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.classList.add('hidden');
-      const btn = document.getElementById('emailLoginBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying credentials...';
-
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value.trim();
-
-      try {
-        const res = await fetch('/api/owner/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        });
-        const data = await res.json();
-        if (data.success) {
-          localStorage.setItem('owner_token', data.token);
-          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
-          window.location.href = '/owner/dashboard.html';
-        } else {
-          showError(data.message || 'Login failed. Please check your email and password.');
           btn.disabled = false;
-          btn.textContent = 'Sign In to Cockpit →';
+          btn.textContent = 'Verify OTP & Open Cockpit →';
+          showError(data.message || 'Invalid OTP code. Please check and try again.');
         }
       } catch (err) {
-        showError('Network error. Please try again.');
         btn.disabled = false;
-        btn.textContent = 'Sign In to Cockpit →';
+        btn.textContent = 'Verify OTP & Open Cockpit →';
+        showError('Network error. Please try again.');
       }
+    }
+
+    function cancelOtpStep() {
+      document.getElementById('otpSection').classList.add('hidden');
+      document.getElementById('phoneForm').classList.remove('hidden');
     }
   </script>
 </body>

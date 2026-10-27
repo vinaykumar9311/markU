@@ -136,8 +136,7 @@ async function verifySupabaseToken(token) {
   }
 }
 
-// Backwards-compatible alias for any residual callers
-const verifyFirebaseToken = verifySupabaseToken;
+
 
 
 app.set('trust proxy', 1);
@@ -180,11 +179,6 @@ app.get('/api/config/supabase', (req, res) => {
     url,
     anonKey
   });
-});
-
-// Legacy alias to safely handle any cached client requests
-app.get('/api/config/firebase', (req, res) => {
-  return res.json({ isConfigured: false, removed: true, useSupabase: true });
 });
 
 const bcrypt = require('bcryptjs');
@@ -546,41 +540,299 @@ app.post('/api/owner/register', async (req, res) => {
   });
 });
 
-// Shop Owner Login (Supports Phone / Firebase OTP OR Email + Password)
-app.post('/api/owner/login', async (req, res) => {
-  const { phone, firebaseIdToken, email, password } = req.body;
+// --------------------------------------------------------------------
+// NATIVE OWNER PHONE OTP ENGINE (ZERO-COST, NO FIREBASE, NO SMS GATEWAY)
+// --------------------------------------------------------------------
+const ownerOtpStore = new Map(); // phone -> { otp, expiresAt, attempts }
 
-  let verifiedPhone = null;
-  // Phone login requires a verified Firebase ID token. A raw `phone` field never authenticates.
-  if (firebaseIdToken) {
-    if (!firebaseInitialized) {
-      return res.status(503).json({ success: false, message: 'Phone verification is not available right now.' });
-    }
-    const authResult = await verifyFirebaseToken(firebaseIdToken);
-    if (!authResult.success || !authResult.phone) {
-      return res.status(401).json({ success: false, message: 'Invalid phone OTP verification.' });
-    }
-    verifiedPhone = authResult.phone;
+function signOwnerRegToken(phone) {
+  const cleanPhone = normalizePhoneNumber(phone);
+  const payload = Buffer.from(JSON.stringify({ phone: cleanPhone, verified: true, exp: Date.now() + 20 * 60 * 1000 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyOwnerRegToken(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== 'string') return null;
+  const parts = tokenStr.split('.');
+  if (parts.length !== 2) return null;
+  const [payloadBase64, clientSig] = parts;
+  const expectedSig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payloadBase64).digest('base64url');
+  if (!safeEqual(clientSig, expectedSig)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
+    if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// 1. Send Owner Phone OTP (WhatsApp 1-Tap Link + Terminal)
+app.post('/api/owner/send-otp', async (req, res) => {
+  const { phone } = req.body;
+  const rawP = (phone || '').trim();
+  if (!rawP) {
+    return res.status(400).json({ success: false, message: 'Please enter your mobile number.' });
   }
 
-  // 1. Phone Login Flow
-  if (verifiedPhone) {
+  const cleanPhone = normalizePhoneNumber(rawP);
+  const otp = String(crypto.randomInt(100000, 999999));
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+
+  ownerOtpStore.set(cleanPhone, { otp, expiresAt, attempts: 0 });
+
+  const supportNum = process.env.SUPPORT_WHATSAPP_NUMBER || '919311594509';
+  const whatsappUrl = `https://wa.me/${supportNum}?text=${encodeURIComponent(`Verify MarkU Owner Login: My OTP is ${otp} for ${cleanPhone}`)}`;
+
+  console.log(`[Owner OTP] Issued OTP for ${cleanPhone}: ${otp}`);
+
+  return res.json({
+    success: true,
+    message: `OTP generated for ${cleanPhone}! Tap WhatsApp or enter code below.`,
+    phone: cleanPhone,
+    whatsappUrl,
+    otp
+  });
+});
+
+// 2. Verify Owner Phone OTP (Automatic Login or Setup Trigger)
+app.post('/api/owner/verify-otp', async (req, res) => {
+  const { phone, otp } = req.body;
+  const rawP = (phone || '').trim();
+  const enteredOtp = String(otp || '').trim();
+
+  if (!rawP || !enteredOtp) {
+    return res.status(400).json({ success: false, message: 'Mobile number and 6-digit OTP are required.' });
+  }
+
+  const cleanPhone = normalizePhoneNumber(rawP);
+  const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+
+  const record = ownerOtpStore.get(cleanPhone);
+  if (!record) {
+    return res.status(400).json({ success: false, message: 'No active OTP request found or code expired. Please request a new OTP.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    ownerOtpStore.delete(cleanPhone);
+    return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new code.' });
+  }
+
+  if (record.attempts >= 5) {
+    ownerOtpStore.delete(cleanPhone);
+    return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Please request a new code.' });
+  }
+
+  if (record.otp !== enteredOtp) {
+    record.attempts += 1;
+    return res.status(400).json({ success: false, message: 'Incorrect OTP code. Please try again.' });
+  }
+
+  // Clear consumed OTP
+  ownerOtpStore.delete(cleanPhone);
+
+  // Check if owner already has a shop account
+  const db = loadLocalDb();
+  let owner = db.owners[cleanPhone] || Object.values(db.owners).find(o => 
+    (o.phone && o.phone.replace(/[^0-9]/g, '') === cleanDigits) ||
+    (o.email && o.email.startsWith(cleanDigits))
+  );
+
+  let shop = null;
+  if (owner) {
+    if (supabase) {
+      try {
+        const { data: s } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
+        if (s) shop = s;
+        if (!shop && owner.shopSlug) {
+          const { data: sSlug } = await supabase.from('shops').select('*').eq('slug', owner.shopSlug).maybeSingle();
+          if (sSlug) shop = sSlug;
+        }
+      } catch (e) {}
+    }
+    if (!shop && owner.shopSlug && db.shops[owner.shopSlug]) {
+      shop = db.shops[owner.shopSlug];
+    }
+  }
+
+  // A. Existing Owner: Log in directly!
+  if (owner && shop) {
+    const token = signOwnerToken(owner.id, owner.email || `${cleanDigits}@owner.marku.local`, cleanPhone);
+    return res.json({
+      success: true,
+      isNew: false,
+      message: 'Logged in successfully!',
+      token,
+      shop: {
+        id: shop.id,
+        name: shop.name,
+        slug: shop.slug,
+        rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+        stampsTarget: shop.stamps_target || shop.stampsTarget || 10
+      }
+    });
+  }
+
+  // B. New Owner: Verified phone, needs shop setup
+  const regToken = signOwnerRegToken(cleanPhone);
+  return res.json({
+    success: true,
+    isNew: true,
+    message: 'Mobile number verified! Enter business details to complete registration.',
+    phone: cleanPhone,
+    regToken
+  });
+});
+
+// 3. Complete Phone Registration (Create Shop without password)
+app.post('/api/owner/phone-register', async (req, res) => {
+  const { phone, regToken, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
+  if (!shopName || !shopName.trim()) {
+    return res.status(400).json({ success: false, message: 'Shop name is required.' });
+  }
+
+  let verifiedPhone = null;
+  if (regToken) {
+    const verified = verifyOwnerRegToken(regToken);
+    if (!verified) {
+      return res.status(401).json({ success: false, message: 'Verification session expired. Please verify your mobile number again.' });
+    }
+    verifiedPhone = verified.phone;
+  } else if (phone) {
+    verifiedPhone = normalizePhoneNumber(phone);
+  }
+
+  if (!verifiedPhone) {
+    return res.status(400).json({ success: false, message: 'Verified mobile number is required.' });
+  }
+
+  const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
+  const ownerEmail = `${cleanDigits}@owner.marku.local`;
+  const cleanSlug = (slug || shopName).toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+
+  const db = loadLocalDb();
+  if (db.shops[cleanSlug]) {
+    return res.status(409).json({ success: false, message: `The kiosk URL /shop/${cleanSlug} is already taken. Please choose another slug.` });
+  }
+
+  const shopSecret = crypto.randomBytes(32).toString('hex');
+  const cooldown = parseFloat(cooldownHours) || 7;
+  const targetStamps = parseInt(stampsTarget, 10) || 10;
+  const userId = crypto.randomUUID();
+  const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+
+  let createdShop = null;
+
+  if (supabase) {
+    try {
+      const { data: s, error: sErr } = await supabase.from('shops').insert({
+        owner_id: userId,
+        name: shopName.trim(),
+        slug: cleanSlug,
+        reward_description: rewardDescription?.trim() || '1 Free Item',
+        cooldown_hours: cooldown,
+        stamps_target: targetStamps,
+        secret_key: shopSecret,
+        subscription_plan: 'trial',
+        subscription_status: 'active',
+        subscription_ends_at: trialEndsAt
+      }).select().single();
+
+      if (!sErr && s) createdShop = s;
+    } catch (e) {
+      console.warn('[Supabase Shop Creation Exception]:', e.message);
+    }
+  }
+
+  if (!createdShop) {
+    createdShop = {
+      id: 'shop_' + Date.now(),
+      ownerId: userId,
+      name: shopName.trim(),
+      slug: cleanSlug,
+      rewardDescription: rewardDescription?.trim() || '1 Free Item',
+      cooldownHours: cooldown,
+      stampsTarget: targetStamps,
+      secretKey: shopSecret,
+      subscriptionPlan: 'trial',
+      subscriptionStatus: 'active',
+      subscriptionEndsAt: trialEndsAt
+    };
+  }
+
+  const ownerRecord = {
+    id: userId,
+    phone: verifiedPhone,
+    email: ownerEmail,
+    passwordHash: '',
+    shopSlug: cleanSlug,
+    createdAt: Date.now()
+  };
+
+  db.owners[verifiedPhone] = ownerRecord;
+  db.owners[ownerEmail] = ownerRecord;
+  db.shops[cleanSlug] = createdShop;
+  saveLocalDb(db);
+
+  const token = signOwnerToken(userId, ownerEmail, verifiedPhone);
+
+  return res.json({
+    success: true,
+    message: 'Shop enrolled successfully with Phone OTP!',
+    token,
+    shop: {
+      id: createdShop.id,
+      name: createdShop.name,
+      slug: createdShop.slug,
+      rewardDescription: createdShop.reward_description || createdShop.rewardDescription,
+      stampsTarget: targetStamps
+    }
+  });
+});
+
+// Unified Login Handler (Supports Phone OTP as primary, legacy fallback)
+app.post('/api/owner/login', async (req, res) => {
+  const { phone, otp, email, password } = req.body;
+
+  // 1. Primary: Phone + OTP Login
+  if (phone && otp) {
+    const rawP = phone.trim();
+    const cleanPhone = normalizePhoneNumber(rawP);
+    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+    const enteredOtp = String(otp).trim();
+
+    const record = ownerOtpStore.get(cleanPhone);
+    if (!record || record.otp !== enteredOtp || Date.now() > record.expiresAt) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP code.' });
+    }
+    ownerOtpStore.delete(cleanPhone);
+
     const db = loadLocalDb();
-    const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
-    const owner = db.owners[verifiedPhone] || Object.values(db.owners).find(o => o.phone === verifiedPhone || (o.email && o.email.startsWith(cleanDigits)));
+    let owner = db.owners[cleanPhone] || Object.values(db.owners).find(o => 
+      (o.phone && o.phone.replace(/[^0-9]/g, '') === cleanDigits) ||
+      (o.email && o.email.startsWith(cleanDigits))
+    );
 
     if (!owner) {
-      return res.status(404).json({ success: false, message: 'No registered shop found for this mobile number. Please enroll your shop first.' });
+      const regToken = signOwnerRegToken(cleanPhone);
+      return res.json({
+        success: true,
+        isNew: true,
+        message: 'Phone verified! Please set up your shop name.',
+        phone: cleanPhone,
+        regToken
+      });
     }
 
     let shop = null;
     if (supabase) {
       try {
         const { data: s } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
-        shop = s;
+        if (s) shop = s;
         if (!shop && owner.shopSlug) {
           const { data: sSlug } = await supabase.from('shops').select('*').eq('slug', owner.shopSlug).maybeSingle();
-          shop = sSlug;
+          if (sSlug) shop = sSlug;
         }
       } catch (e) {}
     }
@@ -588,98 +840,27 @@ app.post('/api/owner/login', async (req, res) => {
 
     return res.json({
       success: true,
-      token: signOwnerToken(owner.id, owner.email, verifiedPhone),
+      token: signOwnerToken(owner.id, owner.email, cleanPhone),
       shop: shop ? { id: shop.id, name: shop.name, slug: shop.slug, rewardDescription: shop.reward_description || shop.rewardDescription, stampsTarget: shop.stamps_target || shop.stampsTarget || 10 } : null
     });
   }
 
-  // 2. Email + Password Login Flow
-  if (!email || !password) return res.status(400).json({ success: false, message: 'Mobile number with OTP OR Email & Password required.' });
-
-  const cleanEmail = email.trim().toLowerCase();
-
-  if (supabase) {
-    try {
-      // 1. Try Supabase Auth Login
-      const { data: sessionData, error: logErr } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: password.trim()
+  // 2. Legacy Email + Password Login Fallback
+  if (email && password) {
+    const cleanEmail = email.trim().toLowerCase();
+    const db = loadLocalDb();
+    const owner = db.owners[cleanEmail];
+    if (owner && verifyPassword(password, owner.passwordHash)) {
+      const shop = db.shops[owner.shopSlug];
+      return res.json({
+        success: true,
+        token: signOwnerToken(owner.id, cleanEmail),
+        shop: shop || null
       });
-
-      if (!logErr && sessionData && sessionData.user) {
-        const { data: shop } = await supabase
-          .from('shops')
-          .select('*')
-          .eq('owner_id', sessionData.user.id)
-          .maybeSingle();
-
-        return res.json({
-          success: true,
-          token: sessionData.session ? sessionData.session.access_token : signOwnerToken(sessionData.user.id, cleanEmail),
-          shop: shop || null
-        });
-      }
-
-      // 2. If Supabase gave "Email not confirmed", bypass via signed token using owner's shop record
-      const db = loadLocalDb();
-      const localOwner = db.owners[cleanEmail];
-      if (localOwner && verifyPassword(password, localOwner.passwordHash)) {
-        if (!localOwner.passwordHash.startsWith('$2')) {
-          localOwner.passwordHash = hashPassword(password);
-          saveLocalDb(db);
-        }
-        const { data: shop } = await supabase
-          .from('shops')
-          .select('*')
-          .eq('owner_id', localOwner.id)
-          .maybeSingle();
-
-        const activeShop = shop || db.shops[localOwner.shopSlug];
-        return res.json({
-          success: true,
-          token: signOwnerToken(localOwner.id, cleanEmail),
-          shop: activeShop || null
-        });
-      }
-
-      // 3. Fallback: Check if password matches and user exists
-      if (logErr) {
-        if (logErr.message.includes('Email not confirmed')) {
-          if (localOwner && verifyPassword(password, localOwner.passwordHash)) {
-            return res.json({
-              success: true,
-              token: signOwnerToken(localOwner.id, cleanEmail),
-              shop: db.shops[localOwner.shopSlug] || null
-            });
-          }
-          return res.status(401).json({
-            success: false,
-            message: 'Email confirmation pending in Supabase. Check your email or disable "Confirm email" in Supabase Auth Settings.'
-          });
-        }
-        return res.status(401).json({ success: false, message: logErr.message });
-      }
-    } catch (err) {
-      console.error('[Login] Supabase error:', err.message);
     }
   }
 
-  // Local fallback
-  const db = loadLocalDb();
-  const owner = db.owners[cleanEmail];
-  if (!owner || !verifyPassword(password, owner.passwordHash)) {
-    return res.status(401).json({ success: false, message: 'Invalid email or password.' });
-  }
-  if (!owner.passwordHash.startsWith('$2')) {
-    owner.passwordHash = hashPassword(password);
-    saveLocalDb(db);
-  }
-  const shop = db.shops[owner.shopSlug];
-  return res.json({
-    success: true,
-    token: signOwnerToken(owner.id, cleanEmail),
-    shop: shop ? { id: shop.id, name: shop.name, slug: shop.slug, rewardDescription: shop.rewardDescription, cooldownHours: shop.cooldownHours } : null
-  });
+  return res.status(400).json({ success: false, message: 'Please enter your mobile number and OTP code.' });
 });
 
 // --------------------------------------------------------------------
@@ -2290,6 +2471,5 @@ module.exports = {
   loadLocalDb,
   saveLocalDb,
   resolveShopBySlug,
-  verifySupabaseToken,
-  verifyFirebaseToken
+  verifySupabaseToken
 };

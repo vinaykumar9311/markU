@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enroll Your Shop · MarkU Digital Loyalty</title>
+  <title>Enroll Your Shop · Phone OTP · MarkU</title>
   
   <!-- Progressive Web App (PWA) Manifest & Meta -->
   <link rel="manifest" href="/manifest.json">
@@ -20,9 +20,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Supabase JS SDK for Google OAuth & Auth -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { 
@@ -94,13 +91,13 @@
       </span>
     </a>
     <a href="/owner/login.html" class="text-xs font-semibold text-gray-400 hover:text-white transition-colors flex items-center gap-1">
-      <span>Already registered? Sign in</span>
+      <span>Already registered? Sign in with OTP</span>
       <span>&rarr;</span>
     </a>
   </header>
 
   <!-- ======================================================== -->
-  <!-- STEP 1: SHOP REGISTRATION FORM                           -->
+  <!-- STEP 1: SHOP REGISTRATION FORM (PHONE OTP ONLY)          -->
   <!-- ======================================================== -->
   <main id="registerStepContainer" class="w-full max-w-lg mx-auto my-6 glass-card rounded-3xl p-6 sm:p-8 space-y-6 relative z-10">
     
@@ -109,16 +106,86 @@
         <span>Quick Onboarding · Free 7-Day Trial</span>
       </div>
       <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Enroll Your Shop</h1>
-      <p class="text-xs sm:text-sm text-gray-400 mt-1">Setup your counter QR kiosk in under 60 seconds. Zero hardware needed.</p>
+      <p class="text-xs sm:text-sm text-gray-400 mt-1">Verified with Mobile OTP. Zero passwords, zero email forms, zero hardware.</p>
     </div>
 
     <!-- Error Banner -->
     <div id="errorBanner" class="hidden bg-red-950/60 border border-red-500/40 text-red-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
+    <!-- Success / Info Banner -->
+    <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
+    <!-- ========================================== -->
+    <!-- 1. PHONE VERIFICATION SECTION              -->
+    <!-- ========================================== -->
+    <div id="phoneVerificationBlock" class="space-y-4">
+      
+      <!-- Phone Entry Sub-step -->
+      <div id="phoneInputStep" class="space-y-3">
+        <label for="ownerPhone" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">
+          Owner Mobile Number (For Instant OTP)
+        </label>
+        <div class="relative">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs font-bold">📱 +91</span>
+          <input type="tel" id="ownerPhone" required placeholder="9876543210" maxlength="14"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-16 pr-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
+        </div>
+        <button type="button" onclick="handleSendRegistrationOtp()" id="sendRegOtpBtn"
+          class="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+          <span id="sendRegOtpBtnText">Get WhatsApp Verification OTP &rarr;</span>
+        </button>
+      </div>
 
-    <!-- 2. Manual Shop Registration Form -->
-    <form id="registerForm" onsubmit="handleRegistrationSubmit(event)" class="space-y-4 pt-1">
+      <!-- OTP Entry Sub-step (Hidden initially) -->
+      <div id="otpInputStep" class="hidden space-y-3.5 bg-[#17171c]/90 border border-emerald-500/40 rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">OTP Dispatched</span>
+          </div>
+          <button type="button" onclick="cancelRegOtp()" class="text-[11px] text-gray-400 hover:text-white underline">Change Phone</button>
+        </div>
+
+        <!-- WhatsApp 1-Tap Link -->
+        <a id="waDirectLink" href="#" target="_blank"
+          class="w-full bg-[#25D366]/20 hover:bg-[#25D366]/30 text-emerald-300 border border-emerald-500/40 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+          <span>Tap to Confirm in WhatsApp &rarr;</span>
+        </a>
+
+        <div>
+          <label for="regOtpCode" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center mb-1">
+            Enter 6-Digit Code
+          </label>
+          <input type="text" id="regOtpCode" maxlength="6" placeholder="• • • • • •"
+            class="w-full bg-[#121215] border border-emerald-500/50 rounded-xl px-3 py-2.5 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <button type="button" onclick="handleVerifyRegistrationOtp()" id="verifyRegOtpBtn"
+          class="w-full btn-gold font-bold py-2.5 rounded-xl text-xs transition-all shadow">
+          Verify OTP Code &rarr;
+        </button>
+      </div>
+
+      <!-- Phone Verified Badge (Shown once verified) -->
+      <div id="phoneVerifiedBadge" class="hidden bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-base shrink-0">✓</div>
+          <div>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Verified Mobile Number</div>
+            <div id="verifiedPhoneDisplay" class="text-white font-mono font-bold text-sm">+91 ----------</div>
+          </div>
+        </div>
+        <button type="button" onclick="resetPhoneStep()" class="text-xs text-gray-400 hover:text-white underline">Change</button>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- 2. SHOP DETAILS FORM                       -->
+    <!-- ========================================== -->
+    <form id="registerForm" onsubmit="handleRegistrationSubmit(event)" class="space-y-4 pt-1 hidden">
       
       <!-- Shop Name -->
       <div>
@@ -145,28 +212,11 @@
             class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500">
         </div>
         <div>
-          <label for="stampsTarget" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Stamps Target</label>
+          <label for="stampsTarget" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Target Stamps</label>
           <input type="number" id="stampsTarget" value="10" min="2" max="50"
             class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500">
         </div>
       </div>
-
-      <!-- Owner Credentials (Email & Password) -->
-      <div id="credentialsSection" class="border-t border-gray-800/80 pt-3 space-y-3">
-        <div>
-          <label for="ownerEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Owner Email</label>
-          <input type="email" id="ownerEmail" required placeholder="owner@store.com"
-            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
-        </div>
-
-        <div>
-          <label for="ownerPassword" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Create Password</label>
-          <input type="password" id="ownerPassword" required placeholder="At least 6 characters" minlength="6"
-            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all">
-        </div>
-      </div>
-
-
 
       <button type="submit" id="mainSubmitBtn"
         class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md mt-2">
@@ -176,13 +226,13 @@
     </form>
 
     <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
-      Already have a shop account? <a href="/owner/login.html" class="text-[#e5a83b] font-bold hover:underline">Sign in to your shop</a>
+      Already have a shop account? <a href="/owner/login.html" class="text-[#e5a83b] font-bold hover:underline">Sign in with Mobile OTP</a>
     </div>
 
   </main>
 
   <!-- ======================================================== -->
-  <!-- STEP 2: ATTRACTIVE SUBSCRIPTION PLAN SELECTION MODAL     -->
+  <!-- STEP 2: SUBSCRIPTION PLAN SELECTION MODAL                -->
   <!-- ======================================================== -->
   <div id="subscriptionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
     <div class="max-w-4xl w-full my-8 bg-[#121216] border border-gray-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 animate-in fade-in duration-200">
@@ -199,104 +249,104 @@
       <!-- 3 Subscription Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
         
-        <!-- PLAN 1: 1 WEEK FREE TRIAL -->
-        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+        <!-- CARD 1: 7-DAY FREE TRIAL -->
+        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6">
           <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold text-gray-400 uppercase tracking-wider">Trial Pass</span>
-              <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/10 text-gray-300">7 Days Free</span>
-            </div>
             <div>
-              <div class="flex items-baseline gap-1">
-                <span class="text-3xl sm:text-4xl font-black text-white">₹0</span>
-                <span class="text-xs text-gray-400">/ 7 days</span>
-              </div>
-              <p class="text-xs text-gray-400 mt-1">Full access to test with real counter visitors.</p>
+              <div class="text-xs font-bold uppercase tracking-wider text-gray-400">Zero Risk</div>
+              <h3 class="text-xl font-black text-white mt-1">7-Day Free Trial</h3>
+              <p class="text-xs text-gray-400 mt-1">Experience the complete customer retention engine before committing.</p>
             </div>
             
-            <ul class="text-xs space-y-2.5 text-gray-300 border-t border-gray-800 pt-4">
+            <div class="py-2 border-y border-gray-800/60">
+              <span class="text-3xl font-black text-white">₹0</span>
+              <span class="text-xs text-gray-400"> / first 7 days</span>
+              <p class="text-xs text-emerald-400 mt-1">No upfront payment needed</p>
+            </div>
+            
+            <ul class="text-xs space-y-2.5 text-gray-300">
               <li class="flex items-center gap-2">
                 <span class="text-emerald-400 font-bold">✓</span>
-                <span>Dynamic 1-Use Counter QR</span>
+                <span>Counter QR Kiosk Active</span>
               </li>
               <li class="flex items-center gap-2">
                 <span class="text-emerald-400 font-bold">✓</span>
-                <span>Customer Loyalty Stamp Pass</span>
+                <span>Digital Wallet Stamp Cards</span>
               </li>
               <li class="flex items-center gap-2">
                 <span class="text-emerald-400 font-bold">✓</span>
-                <span>Real-time Live Analytics</span>
+                <span>Anti-Fraud 7-Hour Lockout</span>
               </li>
               <li class="flex items-center gap-2">
                 <span class="text-emerald-400 font-bold">✓</span>
-                <span>No Credit Card Needed</span>
+                <span>Owner Analytics Dashboard</span>
               </li>
             </ul>
           </div>
 
           <button type="button" onclick="activatePlan('trial')" id="btnPlanTrial"
-            class="w-full py-3 px-4 rounded-xl border border-gray-600 hover:border-gray-400 text-white font-bold text-xs transition-all text-center">
-            Start 1-Week Free Trial &rarr;
+            class="w-full py-3 px-4 rounded-xl border border-gray-700 hover:border-amber-400 hover:text-white font-bold text-xs text-gray-300 transition-all text-center">
+            Start 7-Day Free Trial &rarr;
           </button>
         </div>
 
-        <!-- PLAN 2: PRO MONTHLY (₹149 / mo) -->
-        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+        <!-- CARD 2: MONTHLY PRO (POPULAR) -->
+        <div class="pricing-card pricing-popular rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#e5a83b] text-black font-extrabold text-[10px] uppercase tracking-widest px-3 py-0.5 rounded-full shadow-md">
+            Most Flexible
+          </div>
+
           <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold text-amber-400 uppercase tracking-wider">Pro Monthly</span>
-              <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Flexible</span>
-            </div>
             <div>
-              <div class="flex items-baseline gap-1">
-                <span class="text-3xl sm:text-4xl font-black text-white">₹149</span>
-                <span class="text-xs text-gray-400">/ month</span>
-              </div>
-              <p class="text-xs text-gray-400 mt-1">For growing local shops & busy cafes.</p>
+              <div class="text-xs font-bold uppercase tracking-wider text-amber-400">Monthly Pro</div>
+              <h3 class="text-xl font-black text-white mt-1">Pro Operator</h3>
+              <p class="text-xs text-gray-300 mt-1">Full access billed monthly. Cancel anytime with zero friction.</p>
             </div>
             
-            <ul class="text-xs space-y-2.5 text-gray-300 border-t border-gray-800 pt-4">
+            <div class="py-2 border-y border-amber-500/30">
+              <span class="text-3xl font-black text-white">₹149</span>
+              <span class="text-xs text-gray-300"> / month</span>
+              <p class="text-xs text-amber-300 mt-1">Just ₹5 / day to run your loyalty pass</p>
+            </div>
+            
+            <ul class="text-xs space-y-2.5 text-gray-200">
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span>Unlimited Customer Passes</span>
+                <span class="text-amber-400 font-bold">✓</span>
+                <span class="font-bold text-white">Unlimited Customer Passes</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span>Custom Outlet Logo & Theme</span>
+                <span class="text-amber-400 font-bold">✓</span>
+                <span>Automated Stamp Fraud Protection</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span>Google Review & Instagram Booster</span>
+                <span class="text-amber-400 font-bold">✓</span>
+                <span>Instant Sound Effects on Scan</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span>Anti-Cheat Cooldown Controls</span>
+                <span class="text-amber-400 font-bold">✓</span>
+                <span>WhatsApp Notification Integration</span>
               </li>
             </ul>
           </div>
 
           <button type="button" onclick="openPaymentFlow('monthly')" id="btnPlanMonthly"
-            class="w-full py-3 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs transition-all text-center">
-            Choose Monthly (₹149) &rarr;
+            class="w-full btn-gold py-3 px-4 rounded-xl font-black text-xs transition-all text-center shadow-lg">
+            Subscribe Monthly (₹149) &rarr;
           </button>
         </div>
 
-        <!-- PLAN 3: GROWTH ANNUAL (₹999 / yr) - BEST VALUE -->
-        <div class="pricing-card pricing-popular rounded-2xl p-6 flex flex-col justify-between space-y-6 relative">
-          <div class="absolute -top-3 right-6 bg-[#e5a83b] text-gray-950 font-black text-[10px] px-3 py-0.5 rounded-full uppercase tracking-wider shadow-md">
-            Best Value · Save 44%
-          </div>
-
+        <!-- CARD 3: YEARLY GROWTH (BEST VALUE) -->
+        <div class="pricing-card rounded-2xl p-6 flex flex-col justify-between space-y-6 border border-amber-500/30">
           <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-black text-[#e5a83b] uppercase tracking-wider">Growth Annual</span>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300">₹83 / month</span>
-            </div>
             <div>
-              <div class="flex items-baseline gap-1">
-                <span class="text-3xl sm:text-4xl font-black text-white">₹999</span>
-                <span class="text-xs text-gray-400">/ year</span>
-              </div>
+              <div class="text-xs font-bold uppercase tracking-wider text-amber-400">Best Value · Save 44%</div>
+              <h3 class="text-xl font-black text-white mt-1">Growth Annual</h3>
+              <p class="text-xs text-gray-400 mt-1">Lock in the whole year. Perfect for established cafes and retail.</p>
+            </div>
+            
+            <div class="py-2 border-y border-gray-800/60">
+              <span class="text-3xl font-black text-white">₹999</span>
+              <span class="text-xs text-gray-400"> / year</span>
               <p class="text-xs text-amber-300/80 mt-1">Get 12 months for the price of 6.7 months!</p>
             </div>
             
@@ -414,34 +464,27 @@
   </footer>
 
   <script>
-    let supabaseConfig = null;
-    let supabaseClient = null;
     let selectedPlan = 'trial';
     let registeredShop = null;
     let registeredToken = null;
+    let verifiedPhone = '';
+    let verifiedRegToken = '';
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+    function showError(msg) {
+      const errorBanner = document.getElementById('errorBanner');
+      const infoBanner = document.getElementById('infoBanner');
+      if (infoBanner) infoBanner.classList.add('hidden');
+      errorBanner.textContent = msg;
+      errorBanner.classList.remove('hidden');
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const emailParam = urlParams.get('email');
-      if (emailParam) {
-        document.getElementById('ownerEmail').value = emailParam;
-      }
-
-      try {
-        const res = await fetch('/api/config/supabase');
-        supabaseConfig = await res.json();
-        if (supabaseConfig.isConfigured && window.supabase) {
-          supabaseClient = window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey);
-        }
-      } catch (err) {
-        console.warn('Supabase config note:', err);
-      }
-    });
+    function showInfo(msg) {
+      const errorBanner = document.getElementById('errorBanner');
+      const infoBanner = document.getElementById('infoBanner');
+      if (errorBanner) errorBanner.classList.add('hidden');
+      infoBanner.textContent = msg;
+      infoBanner.classList.remove('hidden');
+    }
 
     function autoSlug() {
       const name = document.getElementById('shopName').value;
@@ -449,20 +492,153 @@
       slugInput.value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     }
 
-    // 2. Submit Shop Registration Form -> Prompts Subscription Selection Modal
+    // Initialize state on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const phoneParam = urlParams.get('phone') || sessionStorage.getItem('owner_reg_phone') || '';
+      const tokenParam = sessionStorage.getItem('owner_reg_token') || '';
+      const isVerified = (urlParams.get('verified') === '1' && phoneParam) || (tokenParam && phoneParam);
+
+      if (isVerified && phoneParam) {
+        setPhoneVerified(phoneParam, tokenParam);
+      } else if (phoneParam) {
+        document.getElementById('ownerPhone').value = phoneParam;
+      }
+    });
+
+    function setPhoneVerified(phone, regToken) {
+      verifiedPhone = phone;
+      verifiedRegToken = regToken || '';
+      document.getElementById('verifiedPhoneDisplay').textContent = phone.startsWith('+') ? phone : `+91 ${phone}`;
+      document.getElementById('phoneInputStep').classList.add('hidden');
+      document.getElementById('otpInputStep').classList.add('hidden');
+      document.getElementById('phoneVerifiedBadge').classList.remove('hidden');
+      document.getElementById('registerForm').classList.remove('hidden');
+      document.getElementById('shopName').focus();
+      showInfo(`Mobile number ${phone} verified successfully! Enter your shop details.`);
+    }
+
+    function resetPhoneStep() {
+      verifiedPhone = '';
+      verifiedRegToken = '';
+      sessionStorage.removeItem('owner_reg_token');
+      sessionStorage.removeItem('owner_reg_phone');
+      document.getElementById('phoneVerifiedBadge').classList.add('hidden');
+      document.getElementById('registerForm').classList.add('hidden');
+      document.getElementById('otpInputStep').classList.add('hidden');
+      document.getElementById('phoneInputStep').classList.remove('hidden');
+      document.getElementById('ownerPhone').focus();
+    }
+
+    function cancelRegOtp() {
+      document.getElementById('otpInputStep').classList.add('hidden');
+      document.getElementById('phoneInputStep').classList.remove('hidden');
+    }
+
+    // Step 1: Send OTP
+    async function handleSendRegistrationOtp() {
+      const phoneInput = document.getElementById('ownerPhone');
+      const phone = phoneInput.value.trim();
+      if (!phone || phone.length < 8) {
+        showError('Please enter a valid mobile number.');
+        phoneInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('sendRegOtpBtn');
+      const btnText = document.getElementById('sendRegOtpBtnText');
+      btn.disabled = true;
+      btnText.textContent = 'Generating OTP...';
+
+      try {
+        const res = await fetch('/api/owner/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp Verification OTP →';
+
+        if (data.success) {
+          verifiedPhone = data.phone || phone;
+          document.getElementById('phoneInputStep').classList.add('hidden');
+          document.getElementById('otpInputStep').classList.remove('hidden');
+          
+          if (data.whatsappUrl) {
+            document.getElementById('waDirectLink').href = data.whatsappUrl;
+          }
+          if (data.otp) {
+            document.getElementById('regOtpCode').value = data.otp;
+          }
+          document.getElementById('regOtpCode').focus();
+          showInfo(`Verification code dispatched to ${data.phone || phone}.`);
+        } else {
+          showError(data.message || 'Could not send verification OTP.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btnText.textContent = 'Get WhatsApp Verification OTP →';
+        showError('Network error. Please try again.');
+      }
+    }
+
+    // Step 2: Verify OTP
+    async function handleVerifyRegistrationOtp() {
+      const otp = document.getElementById('regOtpCode').value.trim();
+      if (!otp || otp.length < 4) {
+        showError('Please enter the 6-digit verification code.');
+        return;
+      }
+
+      const btn = document.getElementById('verifyRegOtpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Verifying Code...';
+
+      try {
+        const res = await fetch('/api/owner/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: verifiedPhone, otp })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btnText = 'Verify OTP Code →';
+
+        if (data.success) {
+          // If already existing owner, log directly into dashboard
+          if (!data.isNew && data.token) {
+            localStorage.setItem('owner_token', data.token);
+            if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+            window.location.href = '/owner/dashboard.html';
+            return;
+          }
+
+          setPhoneVerified(data.phone || verifiedPhone, data.regToken || '');
+        } else {
+          showError(data.message || 'Invalid verification code. Please check and try again.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Verify OTP Code →';
+        showError('Connection error. Please try again.');
+      }
+    }
+
+    // Step 3: Complete Shop Registration
     async function handleRegistrationSubmit(e) {
       e.preventDefault();
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.classList.add('hidden');
-
       const shopName = document.getElementById('shopName').value.trim();
       const slug = document.getElementById('slug').value.trim();
       const reward = document.getElementById('reward').value.trim();
       const stampsTarget = parseInt(document.getElementById('stampsTarget').value, 10) || 10;
-      const email = document.getElementById('ownerEmail').value.trim();
-      const password = document.getElementById('ownerPassword').value.trim();
-      if (!shopName || !slug || !email || !password) {
-        showError('Please complete all required fields.');
+
+      if (!shopName || !slug) {
+        showError('Please provide a business name and kiosk URL.');
+        return;
+      }
+      if (!verifiedPhone) {
+        showError('Please verify your mobile number first.');
         return;
       }
 
@@ -471,16 +647,16 @@
       mainBtn.textContent = 'Enrolling Shop...';
 
       try {
-        const res = await fetch('/api/owner/register', {
+        const res = await fetch('/api/owner/phone-register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            phone: verifiedPhone,
+            regToken: verifiedRegToken,
             shopName,
             slug,
             rewardDescription: reward,
-            stampsTarget,
-            email,
-            password
+            stampsTarget
           })
         });
 
@@ -491,7 +667,11 @@
           localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
 
-          // Open the attractive subscription modal!
+          // Clear temporary registration session
+          sessionStorage.removeItem('owner_reg_token');
+          sessionStorage.removeItem('owner_reg_phone');
+
+          // Open subscription modal
           document.getElementById('subscriptionModal').classList.remove('hidden');
         } else {
           showError(data.message || 'Registration failed. Try a different shop slug.');
@@ -505,7 +685,7 @@
       }
     }
 
-    // 3. Plan Activation Logic
+    // Plan Activation Logic
     async function activatePlan(plan) {
       selectedPlan = plan;
       const token = registeredToken || localStorage.getItem('owner_token');
@@ -523,11 +703,10 @@
           console.warn('Subscription select note:', e);
         }
       }
-      // Redirect straight to dashboard
       window.location.href = '/owner/dashboard.html';
     }
 
-    // 4. Open Payment Flow Modal for Paid Plans
+    // Payment Flow Modal for Paid Plans
     function openPaymentFlow(plan) {
       selectedPlan = plan;
       const titleEl = document.getElementById('paymentModalTitle');
@@ -577,18 +756,6 @@
     function copyUpiId() {
       navigator.clipboard.writeText('9311594509@ybl');
       alert('UPI ID copied: 9311594509@ybl');
-    }
-
-    function showError(msg) {
-      const errorBanner = document.getElementById('errorBanner');
-      errorBanner.textContent = msg;
-      errorBanner.classList.remove('hidden');
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
     }
   </script>
 </body>

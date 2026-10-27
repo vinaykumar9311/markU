@@ -2,128 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a0a0a">
-  <title>Start your loyalty program</title>
-  <link rel="stylesheet" href="/app.css">
-</head>
-<body class="min-h-screen bg-neutral-950 text-neutral-100 antialiased">
-  <main class="mx-auto flex min-h-screen max-w-5xl items-center justify-center p-5">
-    <div class="grid w-full overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900 shadow-2xl md:grid-cols-2">
-      <section class="flex flex-col justify-between bg-amber-400 p-8 text-neutral-950 md:p-10">
-        <div>
-          <div class="flex items-center gap-2 font-black"><span class="grid h-8 w-8 place-items-center rounded-lg bg-neutral-950 text-amber-400">★</span> LOYALTY PASS</div>
-          <h1 class="mt-16 text-4xl font-black leading-tight">Bring customers back.</h1>
-          <p class="mt-4 max-w-sm text-sm leading-6 text-neutral-800">A simple digital stamp card for independent shops. Your shop and customer data stay separate from other businesses.</p>
-        </div>
-        <p class="mt-14 text-xs font-semibold text-neutral-800">10 visits = 1 reward · 12-hour stamp cooldown</p>
-      </section>
-
-      <section class="p-7 md:p-10">
-        <div class="flex gap-2 border-b border-neutral-800">
-          <button id="loginTab" class="border-b-2 border-amber-400 px-3 pb-3 text-sm font-bold">Sign in</button>
-          <button id="registerTab" class="border-b-2 border-transparent px-3 pb-3 text-sm font-semibold text-neutral-400">Create shop</button>
-        </div>
-        <div id="message" role="status" class="mt-5 hidden rounded-xl border p-3 text-sm"></div>
-
-        <form id="loginForm" class="mt-6 space-y-4">
-          <div>
-            <label for="loginEmail" class="mb-1.5 block text-xs font-semibold text-neutral-300">Email</label>
-            <input id="loginEmail" type="email" required autocomplete="email" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <div>
-            <label for="loginPassword" class="mb-1.5 block text-xs font-semibold text-neutral-300">Password</label>
-            <input id="loginPassword" type="password" required autocomplete="current-password" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <button class="w-full rounded-xl bg-amber-400 px-4 py-3 font-bold text-neutral-950 hover:bg-amber-300">Sign in to your shop</button>
-        </form>
-
-        <form id="registerForm" class="mt-6 hidden space-y-4">
-          <div>
-            <label for="ownerName" class="mb-1.5 block text-xs font-semibold text-neutral-300">Your name</label>
-            <input id="ownerName" required minlength="2" maxlength="80" autocomplete="name" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <div>
-            <label for="shopName" class="mb-1.5 block text-xs font-semibold text-neutral-300">Shop name</label>
-            <input id="shopName" required minlength="2" maxlength="80" autocomplete="organization" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <div>
-            <label for="registerEmail" class="mb-1.5 block text-xs font-semibold text-neutral-300">Email</label>
-            <input id="registerEmail" type="email" required autocomplete="email" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <div>
-            <label for="registerPassword" class="mb-1.5 block text-xs font-semibold text-neutral-300">Password (at least 12 characters)</label>
-            <input id="registerPassword" type="password" required minlength="12" autocomplete="new-password" class="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm outline-none focus:border-amber-400">
-          </div>
-          <button class="w-full rounded-xl bg-amber-400 px-4 py-3 font-bold text-neutral-950 hover:bg-amber-300">Create my shop</button>
-        </form>
-        <p class="mt-5 text-xs leading-5 text-neutral-500">By creating an account, you confirm that you’re authorized to manage this business. Use a unique password and keep your account secure.</p>
-      </section>
-    </div>
-  </main>
+  <meta http-equiv="refresh" content="0; url=/owner/login.html">
+  <title>Redirecting to Shop Owner Sign In...</title>
   <script>
-    const message = document.getElementById('message');
-    const loginTab = document.getElementById('loginTab');
-    const registerTab = document.getElementById('registerTab');
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-
-    function showMessage(text, ok = false) {
-      message.textContent = text;
-      message.className = `mt-5 rounded-xl border p-3 text-sm ${ok ? 'border-emerald-700 bg-emerald-950 text-emerald-300' : 'border-rose-800 bg-rose-950 text-rose-300'}`;
-    }
-
-    function selectTab(isRegister) {
-      loginForm.classList.toggle('hidden', isRegister);
-      registerForm.classList.toggle('hidden', !isRegister);
-      loginTab.className = isRegister ? 'border-b-2 border-transparent px-3 pb-3 text-sm font-semibold text-neutral-400' : 'border-b-2 border-amber-400 px-3 pb-3 text-sm font-bold';
-      registerTab.className = isRegister ? 'border-b-2 border-amber-400 px-3 pb-3 text-sm font-bold' : 'border-b-2 border-transparent px-3 pb-3 text-sm font-semibold text-neutral-400';
-      message.classList.add('hidden');
-    }
-
-    async function submitForm(url, body) {
-      const button = (url.endsWith('register') ? registerForm : loginForm).querySelector('button');
-      button.disabled = true;
-      button.textContent = 'Please wait…';
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.message || 'Unable to sign in.');
-        window.location.assign('/shop.html');
-      } catch (error) {
-        showMessage(error.message || 'Connection error. Try again.');
-      } finally {
-        button.disabled = false;
-        button.textContent = url.endsWith('register') ? 'Create my shop' : 'Sign in to your shop';
-      }
-    }
-
-    loginTab.addEventListener('click', () => selectTab(false));
-    registerTab.addEventListener('click', () => selectTab(true));
-    loginForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      submitForm('/api/auth/login', {
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginPassword').value
-      });
-    });
-    registerForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      submitForm('/api/auth/register', {
-        fullName: document.getElementById('ownerName').value,
-        shopName: document.getElementById('shopName').value,
-        email: document.getElementById('registerEmail').value,
-        password: document.getElementById('registerPassword').value
-      });
-    });
-
-    fetch('/api/auth/me').then((response) => {
-      if (response.ok) window.location.replace('/shop.html');
-    }).catch(() => showMessage('Could not check your existing session. You can still sign in or create a shop.'));
+    window.location.replace('/owner/login.html');
   </script>
+</head>
+<body style="background:#0d0d10;color:#f3f4f6;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <p>Redirecting to <a href="/owner/login.html" style="color:#f59e0b;font-weight:bold;">Shop Owner Sign In</a>...</p>
 </body>
 </html>
