@@ -170,7 +170,7 @@
         </button>
 
         <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-          <button type="button" onclick="handleRequestOtp()" class="hover:text-amber-400 underline">Resend OTP</button>
+          <button type="button" id="resendOtpBtn" onclick="handleRequestOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
           <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile / Email</button>
         </div>
       </div>
@@ -291,6 +291,7 @@
           document.getElementById('otpCodeInput').value = '';
           document.getElementById('otpPromptText').textContent = data.message || 'Enter your 6-digit verification code below.';
           document.getElementById('otpCodeInput').focus();
+          startResendCooldown();
         } else {
           showError(data.message || 'Could not send verification code.');
         }
@@ -299,6 +300,27 @@
         btnText.textContent = 'Send OTP to Mobile →';
         showError('Network error. Tap Quick 1-tap claim below.');
       }
+    }
+
+    let resendTimerInterval = null;
+    function startResendCooldown() {
+      const resendBtn = document.getElementById('resendOtpBtn');
+      if (!resendBtn) return;
+      let countdown = 60;
+      resendBtn.disabled = true;
+      resendBtn.textContent = `Resend in ${countdown}s`;
+      if (resendTimerInterval) clearInterval(resendTimerInterval);
+      resendTimerInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(resendTimerInterval);
+          resendTimerInterval = null;
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Resend OTP';
+        } else {
+          resendBtn.textContent = `Resend in ${countdown}s`;
+        }
+      }, 1000);
     }
 
     // 2. Verify OTP & Claim Stamp

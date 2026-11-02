@@ -119,7 +119,7 @@
       </button>
 
       <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-        <button type="button" onclick="handleSendPhoneOtp()" class="hover:text-amber-400 underline">Resend OTP</button>
+        <button type="button" id="resendOwnerOtpBtn" onclick="handleSendPhoneOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
         <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile Number</button>
       </div>
     </div>
@@ -234,6 +234,7 @@
           document.getElementById('otpPromptText').textContent = data.message || `Enter the 6-digit code sent to ${data.phone || phone}`;
           document.getElementById('otpCodeInput').focus();
           showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
+          startOwnerResendCooldown();
         } else {
           showError(data.message || 'Could not send verification OTP.');
         }
@@ -242,6 +243,27 @@
         btnText.textContent = 'Send OTP to Mobile →';
         showError('Connection error. Please try again.');
       }
+    }
+
+    let ownerResendInterval = null;
+    function startOwnerResendCooldown() {
+      const resendBtn = document.getElementById('resendOwnerOtpBtn');
+      if (!resendBtn) return;
+      let countdown = 60;
+      resendBtn.disabled = true;
+      resendBtn.textContent = `Resend in ${countdown}s`;
+      if (ownerResendInterval) clearInterval(ownerResendInterval);
+      ownerResendInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(ownerResendInterval);
+          ownerResendInterval = null;
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Resend OTP';
+        } else {
+          resendBtn.textContent = `Resend in ${countdown}s`;
+        }
+      }, 1000);
     }
 
     // Step 2: Verify Phone OTP & Open Dashboard

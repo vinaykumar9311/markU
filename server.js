@@ -24,7 +24,7 @@ if (IS_PROD && (!process.env.APP_SECRET || process.env.APP_SECRET.length < 32)) 
   console.error('[FATAL] APP_SECRET must be set to a random string of at least 32 characters in production.');
   process.exit(1);
 }
-const GLOBAL_SECRET = process.env.APP_SECRET || 'loyalty_master_secret_' + crypto.randomBytes(16).toString('hex');
+const GLOBAL_SECRET = process.env.APP_SECRET || 'marku_production_master_secret_2026_9876543210abcdef';
 
 // Constant-time string comparison that is safe for unequal lengths
 function safeEqual(a, b) {
@@ -615,10 +615,31 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
   console.log(`[SMS OTP DISPATCH] Code: ${otp}`);
   console.log(`======================================================\n`);
 
-  // 1. Fast2SMS Integration (Instant Quick SMS Gateway - No DLT Needed)
+  // 1. Fast2SMS Integration (Dual-Route: Low-cost OTP route (~₹0.25) with Quick SMS fallback (~₹5.00))
   if (process.env.FAST2SMS_API_KEY) {
     try {
-      const res = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+      // Attempt 1: Ultra-cheap Fast2SMS OTP Route (~₹0.20-0.25/SMS, unlocked via website verification)
+      const otpRes = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+        method: 'POST',
+        headers: {
+          'authorization': process.env.FAST2SMS_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          route: 'otp',
+          variables_values: otp,
+          numbers: tenDigitPhone
+        })
+      });
+      const otpData = await otpRes.json();
+      if (otpData && otpData.return) {
+        console.log('[Fast2SMS] Delivered via low-cost OTP route (~₹0.25):', otpData.request_id);
+        return { sent: true, provider: 'fast2sms_otp' };
+      }
+
+      // Attempt 2: If OTP route requires website verification (code 996), fallback to Quick SMS route 'q' (~₹5/SMS)
+      console.warn('[Fast2SMS Notice] Fast2SMS OTP route status:', otpData?.message || otpData, '- Using route q fallback.');
+      const qRes = await fetch('https://www.fast2sms.com/dev/bulkV2', {
         method: 'POST',
         headers: {
           'authorization': process.env.FAST2SMS_API_KEY,
@@ -630,12 +651,12 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
           numbers: tenDigitPhone
         })
       });
-      const data = await res.json();
-      console.log('[Fast2SMS Status]:', data);
-      if (data && data.return) {
-        return { sent: true, provider: 'fast2sms' };
+      const qData = await qRes.json();
+      console.log('[Fast2SMS Quick Route Status]:', qData);
+      if (qData && qData.return) {
+        return { sent: true, provider: 'fast2sms_quick' };
       }
-      console.warn('[Fast2SMS Notice]:', data?.message || 'Fast2SMS returned error');
+      console.warn('[Fast2SMS Notice]:', qData?.message || 'Fast2SMS returned error');
     } catch (err) {
       console.warn('[Fast2SMS Error]:', err.message);
     }
@@ -693,10 +714,22 @@ app.post('/api/owner/send-otp', async (req, res) => {
 
   const cleanPhone = normalizePhoneNumber(rawP);
   const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+
+  // 60-second cooldown protection per mobile number
+  const existingRecord = ownerOtpStore.get(cleanPhone) || (cleanDigits.length >= 10 ? ownerOtpStore.get(cleanDigits.slice(-10)) : null);
+  if (existingRecord && existingRecord.lastSentAt && (Date.now() - existingRecord.lastSentAt < 60000)) {
+    const remainingSec = Math.ceil((60000 - (Date.now() - existingRecord.lastSentAt)) / 1000);
+    return res.status(429).json({
+      success: false,
+      message: `Please wait ${remainingSec}s before requesting another OTP.`
+    });
+  }
+
   const otp = String(crypto.randomInt(100000, 999999));
   const expiresAt = Date.now() + 5 * 60 * 1000;
+  const lastSentAt = Date.now();
 
-  const otpPayload = { otp, expiresAt, attempts: 0 };
+  const otpPayload = { otp, expiresAt, lastSentAt, attempts: 0 };
   ownerOtpStore.set(cleanPhone, otpPayload);
   if (cleanDigits.length >= 10) {
     ownerOtpStore.set(cleanDigits.slice(-10), otpPayload);
@@ -2174,12 +2207,24 @@ app.post('/api/customer/send-otp', async (req, res) => {
 
   const isEmail = rawId.includes('@');
   const identifier = isEmail ? rawId.toLowerCase() : normalizePhoneNumber(rawId);
+  const cleanDigits = !isEmail ? identifier.replace(/[^0-9]/g, '') : '';
+
+  // 60-second cooldown protection per customer identifier
+  const existingRecord = activeOtpStore.get(identifier) || (!isEmail && cleanDigits.length >= 10 ? activeOtpStore.get(cleanDigits.slice(-10)) : null);
+  if (existingRecord && existingRecord.lastSentAt && (Date.now() - existingRecord.lastSentAt < 60000)) {
+    const remainingSec = Math.ceil((60000 - (Date.now() - existingRecord.lastSentAt)) / 1000);
+    return res.status(429).json({
+      success: false,
+      message: `Please wait ${remainingSec}s before requesting another OTP.`
+    });
+  }
 
   // Generate 6-digit numeric OTP
   const otp = String(crypto.randomInt(100000, 999999));
   const expiresAt = Date.now() + 5 * 60 * 1000;
+  const lastSentAt = Date.now();
 
-  const otpPayload = { otp, expiresAt, attempts: 0 };
+  const otpPayload = { otp, expiresAt, lastSentAt, attempts: 0 };
   activeOtpStore.set(identifier, otpPayload);
   if (!isEmail) {
     const cleanDigits = identifier.replace(/[^0-9]/g, '');

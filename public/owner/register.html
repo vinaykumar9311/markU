@@ -159,6 +159,11 @@
           class="w-full btn-gold font-bold py-2.5 rounded-xl text-xs transition-all shadow">
           Verify OTP Code &rarr;
         </button>
+
+        <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+          <button type="button" id="resendRegOtpBtn" onclick="handleSendRegistrationOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
+          <button type="button" onclick="cancelRegOtp()" class="hover:text-gray-200">Change Phone</button>
+        </div>
       </div>
 
       <!-- Phone Verified Badge (Shown once verified) -->
@@ -561,6 +566,7 @@
           document.getElementById('regOtpCode').value = '';
           document.getElementById('regOtpCode').focus();
           showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
+          startRegResendCooldown();
         } else {
           showError(data.message || 'Could not send verification OTP.');
         }
@@ -569,6 +575,27 @@
         btnText.textContent = 'Send OTP to Mobile Number →';
         showError('Network error. Please try again.');
       }
+    }
+
+    let regResendInterval = null;
+    function startRegResendCooldown() {
+      const resendBtn = document.getElementById('resendRegOtpBtn');
+      if (!resendBtn) return;
+      let countdown = 60;
+      resendBtn.disabled = true;
+      resendBtn.textContent = `Resend in ${countdown}s`;
+      if (regResendInterval) clearInterval(regResendInterval);
+      regResendInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(regResendInterval);
+          regResendInterval = null;
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Resend OTP';
+        } else {
+          resendBtn.textContent = `Resend in ${countdown}s`;
+        }
+      }, 1000);
     }
 
     // Step 2: Verify OTP
