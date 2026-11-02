@@ -60,9 +60,10 @@ const LAN_IP = getLanIp();
 // 1. SUPABASE CLIENT INITIALIZATION
 // --------------------------------------------------------------------
 let supabase = null;
-if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+if (process.env.SUPABASE_URL && sbKey) {
   try {
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    supabase = createClient(process.env.SUPABASE_URL, sbKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
     console.log('[Supabase] Multi-tenant client connected.');
@@ -344,7 +345,7 @@ app.post('/api/owner/register', async (req, res) => {
 
   let verifiedPhone = null;
   let ownerEmail = null;
-  const authToken = supabaseToken || req.body.token;
+  const authToken = supabaseToken;
 
   if (authToken) {
     const authResult = await verifySupabaseToken(authToken);
@@ -2212,7 +2213,7 @@ app.post('/api/customer/send-otp', async (req, res) => {
 
 app.post('/api/customer/verify-otp', async (req, res) => {
   const { supabaseToken, token, phone, email, otp } = req.body;
-  const authToken = supabaseToken || token;
+  const authToken = supabaseToken;
   const rawId = (phone || email || '').trim();
 
   // 1. If Supabase token provided (e.g. from magic link or Supabase OTP)
@@ -2298,7 +2299,7 @@ app.post('/api/customer/verify-otp', async (req, res) => {
 // --------------------------------------------------------------------
 app.post('/api/claim-stamp', async (req, res) => {
   const { shopSlug, token, phone, otp, supabaseToken, verificationToken, name } = req.body;
-  const authToken = supabaseToken || req.body.token;
+  const authToken = supabaseToken;
 
   // 1. Resolve Shop strictly with fallback resolver
   const shop = await resolveShopBySlug(shopSlug);
