@@ -614,7 +614,7 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
   console.log(`[SMS OTP DISPATCH] Code: ${otp}`);
   console.log(`======================================================\n`);
 
-  // 1. Fast2SMS Integration (Instant Indian SMS Gateway)
+  // 1. Fast2SMS Integration (Instant Quick SMS Gateway - No DLT Needed)
   if (process.env.FAST2SMS_API_KEY) {
     try {
       const res = await fetch('https://www.fast2sms.com/dev/bulkV2', {
@@ -624,8 +624,8 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          route: 'otp',
-          variables_values: otp,
+          route: 'q',
+          message: `${context}: Your verification code is ${otp}. Valid for 5 minutes. Do not share this OTP.`,
           numbers: tenDigitPhone
         })
       });
