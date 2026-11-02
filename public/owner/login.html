@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shop Owner Sign In · Phone OTP · MarkU</title>
+  <title>Shop Owner Sign In · Phone OTP & Email · MarkU</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,14 +51,26 @@
   </header>
 
   <!-- Login Card -->
-  <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-6 relative z-10">
+  <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-5 relative z-10">
     
     <div>
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-3">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-2.5">
         <span>Owner Cockpit</span>
       </div>
       <h1 class="text-2xl font-extrabold tracking-tight text-white">Owner Sign In</h1>
-      <p class="text-xs text-gray-400 mt-1">Sign in with your mobile number to manage your counter kiosk and rewards.</p>
+      <p class="text-xs text-gray-400 mt-1">Sign in with Mobile OTP or Email to manage your counter kiosk and loyalty passes.</p>
+    </div>
+
+    <!-- Mode Switcher Tabs -->
+    <div class="flex items-center bg-[#17171c] p-1 rounded-2xl border border-gray-800 text-xs">
+      <button type="button" id="tabPhoneBtn" onclick="switchLoginTab('phone')"
+        class="flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow">
+        📱 Mobile OTP
+      </button>
+      <button type="button" id="tabEmailBtn" onclick="switchLoginTab('email')"
+        class="flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white">
+        ✉️ Email & Password
+      </button>
     </div>
 
     <!-- Error Banner -->
@@ -67,7 +79,7 @@
     <!-- Info Banner -->
     <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <!-- STEP 1: Phone Input Form -->
+    <!-- TAB 1: Phone Input Form -->
     <form id="phoneForm" onsubmit="handleSendPhoneOtp(event)" class="space-y-4 pt-1">
       <div>
         <label for="ownerPhone" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Mobile Number</label>
@@ -79,32 +91,25 @@
       </div>
 
       <button type="submit" id="sendOtpBtn"
-        class="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
-        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
-        <span id="sendOtpBtnText">Get WhatsApp OTP & Sign In &rarr;</span>
+        class="w-full bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        <span id="sendOtpBtnText">Send OTP to Mobile &rarr;</span>
       </button>
     </form>
 
-    <!-- STEP 2: OTP Verification Card (Hidden initially) -->
+    <!-- STEP 2: Phone OTP Verification Section (Hidden initially) -->
     <div id="otpSection" class="hidden space-y-4 pt-1">
       <div class="text-center space-y-1">
         <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-          <span>✓ OTP Dispatched (100% Free)</span>
+          <span>✓ OTP Dispatched</span>
         </div>
-        <p id="otpPromptText" class="text-xs text-gray-300">Open WhatsApp or enter your 6-digit verification code.</p>
+        <p id="otpPromptText" class="text-xs text-gray-300">Enter the 6-digit verification code sent to your mobile phone.</p>
       </div>
-
-      <!-- WhatsApp 1-Tap Link Button -->
-      <a id="whatsappIntentBtn" href="#" target="_blank"
-        class="w-full bg-[#25D366]/20 hover:bg-[#25D366]/30 text-emerald-300 border border-emerald-500/40 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
-        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
-        <span>Open in WhatsApp to Confirm &rarr;</span>
-      </a>
 
       <!-- 6-Digit OTP Input -->
       <div class="space-y-1.5">
         <label for="otpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
-        <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •"
+        <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code"
           class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
       </div>
 
@@ -118,6 +123,26 @@
         <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile Number</button>
       </div>
     </div>
+
+    <!-- TAB 2: Email & Password Form (Hidden initially) -->
+    <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1 hidden">
+      <div>
+        <label for="ownerEmail" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Email Address</label>
+        <input type="email" id="ownerEmail" placeholder="owner@store.com"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-sans">
+      </div>
+
+      <div>
+        <label for="ownerPassword" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Password</label>
+        <input type="password" id="ownerPassword" placeholder="••••••••"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-sans">
+      </div>
+
+      <button type="submit" id="emailLoginBtn"
+        class="w-full btn-gold font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+        <span>Sign In to Cockpit &rarr;</span>
+      </button>
+    </form>
 
     <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
       Need a new shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
@@ -148,6 +173,31 @@
       infoBanner.classList.remove('hidden');
     }
 
+    function switchLoginTab(tab) {
+      const isPhone = tab === 'phone';
+      document.getElementById('tabPhoneBtn').className = isPhone
+        ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
+        : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
+      document.getElementById('tabEmailBtn').className = !isPhone
+        ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
+        : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
+
+      const errorBanner = document.getElementById('errorBanner');
+      if (errorBanner) errorBanner.classList.add('hidden');
+
+      if (isPhone) {
+        document.getElementById('emailLoginForm').classList.add('hidden');
+        document.getElementById('phoneForm').classList.remove('hidden');
+        document.getElementById('otpSection').classList.add('hidden');
+        document.getElementById('ownerPhone').focus();
+      } else {
+        document.getElementById('phoneForm').classList.add('hidden');
+        document.getElementById('otpSection').classList.add('hidden');
+        document.getElementById('emailLoginForm').classList.remove('hidden');
+        document.getElementById('ownerEmail').focus();
+      }
+    }
+
     // Step 1: Send Owner Phone OTP
     async function handleSendPhoneOtp(e) {
       if (e) e.preventDefault();
@@ -174,26 +224,22 @@
         });
         const data = await res.json();
         btn.disabled = false;
-        btnText.textContent = 'Get WhatsApp OTP & Sign In →';
+        btnText.textContent = 'Send OTP to Mobile →';
 
         if (data.success) {
           document.getElementById('phoneForm').classList.add('hidden');
           document.getElementById('otpSection').classList.remove('hidden');
 
-          if (data.whatsappUrl) {
-            document.getElementById('whatsappIntentBtn').href = data.whatsappUrl;
-          }
-          if (data.otp) {
-            document.getElementById('otpCodeInput').value = data.otp;
-          }
-          document.getElementById('otpPromptText').textContent = data.message || `Confirm code for ${data.phone || phone}`;
+          document.getElementById('otpCodeInput').value = '';
+          document.getElementById('otpPromptText').textContent = data.message || `Enter the 6-digit code sent to ${data.phone || phone}`;
           document.getElementById('otpCodeInput').focus();
+          showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
         } else {
           showError(data.message || 'Could not send verification OTP.');
         }
       } catch (err) {
         btn.disabled = false;
-        btnText.textContent = 'Get WhatsApp OTP & Sign In →';
+        btnText.textContent = 'Send OTP to Mobile →';
         showError('Connection error. Please try again.');
       }
     }
@@ -220,7 +266,6 @@
 
         if (data.success) {
           if (data.isNew) {
-            // New owner: redirect to register page with phone and regToken!
             sessionStorage.setItem('owner_reg_token', data.regToken || '');
             sessionStorage.setItem('owner_reg_phone', data.phone || activePhone);
             window.location.href = `/owner/register.html?phone=${encodeURIComponent(data.phone || activePhone)}&verified=1`;
@@ -238,6 +283,45 @@
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Verify OTP & Open Cockpit →';
+        showError('Network error. Please try again.');
+      }
+    }
+
+    // Step 3: Email & Password Sign In
+    async function handleEmailLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('ownerEmail').value.trim();
+      const password = document.getElementById('ownerPassword').value;
+
+      if (!email || !password) {
+        showError('Please enter your email and password.');
+        return;
+      }
+
+      const btn = document.getElementById('emailLoginBtn');
+      btn.disabled = true;
+      btn.textContent = 'Signing in to Cockpit...';
+
+      try {
+        const res = await fetch('/api/owner/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = 'Sign In to Cockpit →';
+
+        if (data.success && data.token) {
+          localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          window.location.href = '/owner/dashboard.html';
+        } else {
+          showError(data.message || 'Invalid email or password.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Sign In to Cockpit →';
         showError('Network error. Please try again.');
       }
     }

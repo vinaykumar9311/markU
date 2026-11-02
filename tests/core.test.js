@@ -11,7 +11,9 @@ const {
   signCustomerOtpToken,
   verifyCustomerOtpToken,
   hashPassword,
-  verifyPassword
+  verifyPassword,
+  normalizePhoneNumber,
+  matchPhone
 } = require('../server');
 
 test('Dynamic QR token generation and HMAC anti-counterfeit verification', () => {
@@ -128,4 +130,21 @@ test('resolveShopBySlug resolves shops strictly and returns null for unknown slu
   assert.equal(unknown, null, 'Unknown shop slug must strictly return null');
 
   delete db.shops['fixture-shop'];
+});
+
+test('normalizePhoneNumber formats 10, 11, and 12-digit numbers with +91 country code', () => {
+  assert.equal(normalizePhoneNumber('9876543210'), '+919876543210');
+  assert.equal(normalizePhoneNumber('09876543210'), '+919876543210');
+  assert.equal(normalizePhoneNumber('+919876543210'), '+919876543210');
+  assert.equal(normalizePhoneNumber('919876543210'), '+919876543210');
+  assert.equal(normalizePhoneNumber(''), '');
+});
+
+test('matchPhone accurately matches phone numbers across international and local formatting', () => {
+  assert.equal(matchPhone('9876543210', '+919876543210'), true);
+  assert.equal(matchPhone('+91 98765 43210', '9876543210'), true);
+  assert.equal(matchPhone('09876543210', '+919876543210'), true);
+  assert.equal(matchPhone('9876543210', '9876543299'), false);
+  assert.equal(matchPhone('', '9876543210'), false);
+  assert.equal(matchPhone(null, '9876543210'), false);
 });

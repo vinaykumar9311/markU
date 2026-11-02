@@ -10,4 +10,5 @@ cloudflared.exe
 tunnel_url.txt
 .copilot-azure/
 npm-debug.log*
+*.log
 push_to_github.bat

@@ -131,9 +131,9 @@
             class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-16 pr-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
         </div>
         <button type="button" onclick="handleSendRegistrationOtp()" id="sendRegOtpBtn"
-          class="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
-          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
-          <span id="sendRegOtpBtnText">Get WhatsApp Verification OTP &rarr;</span>
+          class="w-full bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+          <span id="sendRegOtpBtnText">Send OTP to Mobile Number &rarr;</span>
         </button>
       </div>
 
@@ -142,17 +142,10 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">OTP Dispatched</span>
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">SMS OTP Dispatched</span>
           </div>
           <button type="button" onclick="cancelRegOtp()" class="text-[11px] text-gray-400 hover:text-white underline">Change Phone</button>
         </div>
-
-        <!-- WhatsApp 1-Tap Link -->
-        <a id="waDirectLink" href="#" target="_blank"
-          class="w-full bg-[#25D366]/20 hover:bg-[#25D366]/30 text-emerald-300 border border-emerald-500/40 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
-          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
-          <span>Tap to Confirm in WhatsApp &rarr;</span>
-        </a>
 
         <div>
           <label for="regOtpCode" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center mb-1">
@@ -558,27 +551,22 @@
         });
         const data = await res.json();
         btn.disabled = false;
-        btnText.textContent = 'Get WhatsApp Verification OTP →';
+        btnText.textContent = 'Send OTP to Mobile Number →';
 
         if (data.success) {
           verifiedPhone = data.phone || phone;
           document.getElementById('phoneInputStep').classList.add('hidden');
           document.getElementById('otpInputStep').classList.remove('hidden');
           
-          if (data.whatsappUrl) {
-            document.getElementById('waDirectLink').href = data.whatsappUrl;
-          }
-          if (data.otp) {
-            document.getElementById('regOtpCode').value = data.otp;
-          }
+          document.getElementById('regOtpCode').value = '';
           document.getElementById('regOtpCode').focus();
-          showInfo(`Verification code dispatched to ${data.phone || phone}.`);
+          showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
         } else {
           showError(data.message || 'Could not send verification OTP.');
         }
       } catch (err) {
         btn.disabled = false;
-        btnText.textContent = 'Get WhatsApp Verification OTP →';
+        btnText.textContent = 'Send OTP to Mobile Number →';
         showError('Network error. Please try again.');
       }
     }
@@ -603,7 +591,7 @@
         });
         const data = await res.json();
         btn.disabled = false;
-        btnText = 'Verify OTP Code →';
+        btn.textContent = 'Verify OTP Code →';
 
         if (data.success) {
           // If already existing owner, log directly into dashboard
