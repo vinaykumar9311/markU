@@ -230,6 +230,22 @@
         </div>
       </div>
 
+      <!-- Create Cockpit Password (Optional) -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label for="ownerPassword" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Set Cockpit Password</label>
+          <span class="text-[10px] text-amber-400 font-semibold">Optional</span>
+        </div>
+        <div class="relative">
+          <input type="password" id="ownerPassword" placeholder="Set a password (min. 6 chars)" minlength="6"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
+          <button type="button" onclick="togglePassVisibility('ownerPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs select-none">
+            Show
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-500 mt-1">Allows signing in instantly next time with your mobile number + password without waiting for OTP.</p>
+      </div>
+
       <button type="submit" id="mainSubmitBtn"
         class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md mt-2">
         Continue to Plan Selection &rarr;
@@ -493,6 +509,18 @@
       return countryCode + str;
     }
 
+    function togglePassVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    }
+
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
       const infoBanner = document.getElementById('infoBanner');
@@ -500,13 +528,18 @@
 
       let html = msg;
       if (msg && (msg.includes('already exists') || msg.includes('register one shop') || msg.includes('Please sign in'))) {
+        const phoneParam = encodeURIComponent(verifiedPhone || '');
         html = `<div>${msg}</div>
-        <div class="mt-2.5 pt-2 border-t border-red-500/30 flex items-center justify-between gap-2">
-          <span class="text-xs text-red-200 font-semibold">Already have a cockpit account?</span>
-          <a href="/owner/login.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold text-xs shadow transition-all shrink-0">
-            <span>Sign In with OTP</span>
-            <span>&rarr;</span>
-          </a>
+        <div class="mt-2.5 pt-2 border-t border-red-500/30 flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs text-red-200 font-semibold">Already registered?</span>
+          <div class="flex items-center gap-2">
+            <a href="/owner/login.html${phoneParam ? '?phone=' + phoneParam : ''}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold text-xs shadow transition-all">
+              <span>Sign In with OTP &rarr;</span>
+            </a>
+            <a href="/owner/login.html?action=forgot${phoneParam ? '&phone=' + phoneParam : ''}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold text-xs border border-gray-700 transition-all">
+              <span>Forgot Password? &rarr;</span>
+            </a>
+          </div>
         </div>`;
       }
 
@@ -706,6 +739,8 @@
       const slug = document.getElementById('slug').value.trim();
       const reward = document.getElementById('reward').value.trim();
       const stampsTarget = parseInt(document.getElementById('stampsTarget').value, 10) || 10;
+      const passInput = document.getElementById('ownerPassword');
+      const password = passInput ? passInput.value.trim() : '';
 
       if (!shopName || !slug) {
         showError('Please provide a business name and kiosk URL.');
@@ -713,6 +748,11 @@
       }
       if (!verifiedPhone) {
         showError('Please verify your mobile number first.');
+        return;
+      }
+      if (password && password.length < 6) {
+        showError('Cockpit password must be at least 6 characters long.');
+        if (passInput) passInput.focus();
         return;
       }
 
@@ -730,7 +770,8 @@
             shopName,
             slug,
             rewardDescription: reward,
-            stampsTarget
+            stampsTarget,
+            password: password || undefined
           })
         });
 

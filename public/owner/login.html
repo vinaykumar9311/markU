@@ -62,14 +62,14 @@
     </div>
 
     <!-- Mode Switcher Tabs -->
-    <div class="flex items-center bg-[#17171c] p-1 rounded-2xl border border-gray-800 text-xs">
+    <div id="loginModeTabs" class="flex items-center bg-[#17171c] p-1 rounded-2xl border border-gray-800 text-xs">
       <button type="button" id="tabPhoneBtn" onclick="switchLoginTab('phone')"
         class="flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow">
         📱 Mobile OTP
       </button>
-      <button type="button" id="tabEmailBtn" onclick="switchLoginTab('email')"
+      <button type="button" id="tabPasswordBtn" onclick="switchLoginTab('password')"
         class="flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white">
-        ✉️ Email & Password
+        🔑 Password Sign In
       </button>
     </div>
 
@@ -138,25 +138,121 @@
       </div>
     </form>
 
-    <!-- TAB 2: Email & Password Form (Hidden initially) -->
-    <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1 hidden">
+    <!-- TAB 2: Mobile Number / Email & Password Form (Hidden initially) -->
+    <form id="passwordLoginForm" onsubmit="handlePasswordLogin(event)" class="space-y-4 pt-1 hidden">
       <div>
-        <label for="ownerEmail" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Email Address</label>
-        <input type="email" id="ownerEmail" placeholder="owner@store.com"
-          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-sans">
+        <label for="ownerIdentifier" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Mobile Number or Email</label>
+        <input type="text" id="ownerIdentifier" required placeholder="e.g. 9311594509 or owner@store.com"
+          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
       </div>
 
       <div>
-        <label for="ownerPassword" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Password</label>
-        <input type="password" id="ownerPassword" placeholder="••••••••"
-          class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-sans">
+        <div class="flex items-center justify-between mb-1.5">
+          <label for="ownerPassword" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">Password</label>
+          <button type="button" onclick="switchLoginTab('forgot')" class="text-[11px] text-[#e5a83b] hover:underline font-semibold">Forgot Password?</button>
+        </div>
+        <div class="relative">
+          <input type="password" id="ownerPassword" required placeholder="••••••••"
+            class="w-full bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-sans">
+          <button type="button" onclick="togglePassVisibility('ownerPassword', this)" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs select-none">
+            Show
+          </button>
+        </div>
       </div>
 
-      <button type="submit" id="emailLoginBtn"
+      <button type="submit" id="passwordLoginBtn"
         class="w-full btn-gold font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
         <span>Sign In to Cockpit &rarr;</span>
       </button>
+
+      <div class="text-center text-[11px] text-gray-400 pt-1">
+        <span>Don't remember your password? </span>
+        <button type="button" onclick="switchLoginTab('forgot')" class="text-amber-400 font-semibold hover:underline">Reset with Phone OTP</button>
+      </div>
     </form>
+
+    <!-- SECTION 3: Forgot Password with OTP (Hidden initially) -->
+    <div id="forgotPasswordSection" class="hidden space-y-4 pt-1">
+      <div class="flex items-center justify-between pb-1">
+        <div>
+          <h2 class="text-sm font-extrabold text-white">Reset Cockpit Password</h2>
+          <p class="text-[11px] text-gray-400 mt-0.5">Verify your mobile phone via SMS OTP to set a new password.</p>
+        </div>
+        <button type="button" onclick="switchLoginTab('password')" class="text-xs text-gray-400 hover:text-white">← Back</button>
+      </div>
+
+      <!-- Forgot Sub-Step 1: Phone Entry -->
+      <form id="forgotPhoneForm" onsubmit="handleSendForgotOtp(event)" class="space-y-3.5">
+        <div>
+          <label for="forgotPhone" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Registered Mobile Number</label>
+          <div class="flex gap-2">
+            <select id="forgotCountryCode" class="bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-2.5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-mono shrink-0 cursor-pointer">
+              <option value="+91" selected style="background-color: #17171c; color: #ffffff;">🇮🇳 +91</option>
+              <option value="+1" style="background-color: #17171c; color: #ffffff;">🇺🇸 +1</option>
+              <option value="+44" style="background-color: #17171c; color: #ffffff;">🇬🇧 +44</option>
+              <option value="+971" style="background-color: #17171c; color: #ffffff;">🇦🇪 +971</option>
+              <option value="+61" style="background-color: #17171c; color: #ffffff;">🇦🇺 +61</option>
+              <option value="+65" style="background-color: #17171c; color: #ffffff;">🇸🇬 +65</option>
+              <option value="+49" style="background-color: #17171c; color: #ffffff;">🇩🇪 +49</option>
+              <option value="+33" style="background-color: #17171c; color: #ffffff;">🇫🇷 +33</option>
+              <option value="+81" style="background-color: #17171c; color: #ffffff;">🇯🇵 +81</option>
+              <option value="+966" style="background-color: #17171c; color: #ffffff;">🇸🇦 +966</option>
+              <option value="" style="background-color: #17171c; color: #ffffff;">🌐 Other</option>
+            </select>
+            <input type="tel" id="forgotPhone" required placeholder="Registered phone"
+              class="flex-1 bg-[#17171c] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
+          </div>
+        </div>
+
+        <button type="submit" id="sendForgotOtpBtn"
+          class="w-full bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
+          <span>Send Password Reset OTP &rarr;</span>
+        </button>
+      </form>
+
+      <!-- Forgot Sub-Step 2: OTP + New Password -->
+      <form id="forgotResetForm" onsubmit="handleResetPasswordSubmit(event)" class="hidden space-y-3.5 bg-[#17171c]/90 border border-amber-500/30 rounded-2xl p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Reset OTP Sent</span>
+          </div>
+          <button type="button" onclick="cancelForgotOtpStep()" class="text-[11px] text-gray-400 hover:text-white underline">Change Number</button>
+        </div>
+
+        <div>
+          <label for="forgotOtpCode" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center mb-1">
+            6-Digit Verification Code
+          </label>
+          <input type="text" id="forgotOtpCode" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
+            oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6) document.getElementById('forgotNewPassword').focus();"
+            class="w-full bg-[#121215] border border-amber-500/50 rounded-xl px-3 py-2 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-amber-500">
+        </div>
+
+        <div>
+          <label for="forgotNewPassword" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">
+            Enter New Password (min. 6 characters)
+          </label>
+          <div class="relative">
+            <input type="password" id="forgotNewPassword" required minlength="6" placeholder="Set your new password"
+              class="w-full bg-[#121215] border border-gray-800 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
+            <button type="button" onclick="togglePassVisibility('forgotNewPassword', this)" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs select-none">
+              Show
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="resetPasswordBtn"
+          class="w-full btn-gold font-bold py-3 rounded-xl text-xs transition-all shadow">
+          Save New Password & Open Cockpit &rarr;
+        </button>
+
+        <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
+          <button type="button" id="resendForgotOtpBtn" onclick="handleSendForgotOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend Code</button>
+          <button type="button" onclick="switchLoginTab('password')" class="hover:text-gray-200">Cancel</button>
+        </div>
+      </form>
+    </div>
 
     <div class="text-center text-xs text-gray-400 pt-3 border-t border-gray-800/80">
       Need a new shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
@@ -170,6 +266,19 @@
 
   <script>
     let activePhone = '';
+    let activeForgotPhone = '';
+
+    function togglePassVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    }
 
     function cleanPhoneNumber(raw, countryCode = '+91') {
       if (!raw) return '';
@@ -200,28 +309,68 @@
 
     function switchLoginTab(tab) {
       const isPhone = tab === 'phone';
-      document.getElementById('tabPhoneBtn').className = isPhone
-        ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
-        : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
-      document.getElementById('tabEmailBtn').className = !isPhone
-        ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
-        : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
+      const isPassword = tab === 'password';
+      const isForgot = tab === 'forgot';
+
+      const tabPhoneBtn = document.getElementById('tabPhoneBtn');
+      const tabPasswordBtn = document.getElementById('tabPasswordBtn');
+      const loginModeTabs = document.getElementById('loginModeTabs');
+
+      if (tabPhoneBtn && tabPasswordBtn) {
+        tabPhoneBtn.className = isPhone
+          ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
+          : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
+        tabPasswordBtn.className = isPassword
+          ? 'flex-1 py-2 rounded-xl font-bold transition-all bg-[#e5a83b] text-black shadow'
+          : 'flex-1 py-2 rounded-xl font-bold transition-all text-gray-400 hover:text-white';
+      }
 
       const errorBanner = document.getElementById('errorBanner');
       if (errorBanner) errorBanner.classList.add('hidden');
 
+      // Hide all panels first
+      document.getElementById('phoneForm').classList.add('hidden');
+      document.getElementById('otpSection').classList.add('hidden');
+      document.getElementById('passwordLoginForm').classList.add('hidden');
+      document.getElementById('forgotPasswordSection').classList.add('hidden');
+
       if (isPhone) {
-        document.getElementById('emailLoginForm').classList.add('hidden');
+        if (loginModeTabs) loginModeTabs.classList.remove('hidden');
         document.getElementById('phoneForm').classList.remove('hidden');
-        document.getElementById('otpSection').classList.add('hidden');
         document.getElementById('ownerPhone').focus();
-      } else {
-        document.getElementById('phoneForm').classList.add('hidden');
-        document.getElementById('otpSection').classList.add('hidden');
-        document.getElementById('emailLoginForm').classList.remove('hidden');
-        document.getElementById('ownerEmail').focus();
+      } else if (isPassword) {
+        if (loginModeTabs) loginModeTabs.classList.remove('hidden');
+        document.getElementById('passwordLoginForm').classList.remove('hidden');
+        document.getElementById('ownerIdentifier').focus();
+      } else if (isForgot) {
+        if (loginModeTabs) loginModeTabs.classList.add('hidden');
+        document.getElementById('forgotPasswordSection').classList.remove('hidden');
+        document.getElementById('forgotPhoneForm').classList.remove('hidden');
+        document.getElementById('forgotResetForm').classList.add('hidden');
+        document.getElementById('forgotPhone').focus();
       }
     }
+
+    // Initialize state on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const action = urlParams.get('action');
+      const phoneParam = urlParams.get('phone');
+
+      if (action === 'forgot') {
+        switchLoginTab('forgot');
+        if (phoneParam) {
+          const raw = phoneParam.replace(/^\+91/, '').replace(/^\+/, '');
+          document.getElementById('forgotPhone').value = raw;
+        }
+      } else if (phoneParam) {
+        const raw = phoneParam.replace(/^\+91/, '').replace(/^\+/, '');
+        document.getElementById('ownerPhone').value = raw;
+        if (document.getElementById('ownerIdentifier')) {
+          document.getElementById('ownerIdentifier').value = raw;
+        }
+      }
+    });
 
     // Step 1: Send Owner Phone OTP
     async function handleSendPhoneOtp(e) {
@@ -343,18 +492,18 @@
       }
     }
 
-    // Step 3: Email & Password Sign In
-    async function handleEmailLogin(e) {
+    // Step 3: Password Sign In (Mobile Number or Email)
+    async function handlePasswordLogin(e) {
       e.preventDefault();
-      const email = document.getElementById('ownerEmail').value.trim();
+      const identifier = document.getElementById('ownerIdentifier').value.trim();
       const password = document.getElementById('ownerPassword').value;
 
-      if (!email || !password) {
-        showError('Please enter your email and password.');
+      if (!identifier || !password) {
+        showError('Please enter your mobile number/email and password.');
         return;
       }
 
-      const btn = document.getElementById('emailLoginBtn');
+      const btn = document.getElementById('passwordLoginBtn');
       btn.disabled = true;
       btn.textContent = 'Signing in to Cockpit...';
 
@@ -362,7 +511,7 @@
         const res = await fetch('/api/owner/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ identifier, password })
         });
         const data = await res.json();
         btn.disabled = false;
@@ -373,12 +522,141 @@
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
           window.location.href = '/owner/dashboard.html';
         } else {
-          showError(data.message || 'Invalid email or password.');
+          showError(data.message || 'Invalid credentials. Please check your mobile/email or password.');
         }
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Sign In to Cockpit →';
         showError('Network error. Please try again.');
+      }
+    }
+
+    // --------------------------------------------------------------------
+    // FORGOT PASSWORD FLOW HANDLERS
+    // --------------------------------------------------------------------
+    async function handleSendForgotOtp(e) {
+      if (e) e.preventDefault();
+      const codeSelect = document.getElementById('forgotCountryCode');
+      const countryCode = codeSelect ? codeSelect.value : '+91';
+      const phoneInput = document.getElementById('forgotPhone');
+      const rawPhone = phoneInput.value.trim();
+
+      if (!rawPhone || rawPhone.length < 5) {
+        showError('Please enter your registered mobile number.');
+        phoneInput.focus();
+        return;
+      }
+
+      const phone = cleanPhoneNumber(rawPhone, countryCode);
+      activeForgotPhone = phone;
+
+      const btn = document.getElementById('sendForgotOtpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending Reset OTP...';
+
+      try {
+        const res = await fetch('/api/owner/forgot-password/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = 'Send Password Reset OTP →';
+
+        if (data.success) {
+          document.getElementById('forgotPhoneForm').classList.add('hidden');
+          document.getElementById('forgotResetForm').classList.remove('hidden');
+
+          document.getElementById('forgotOtpCode').value = '';
+          document.getElementById('forgotNewPassword').value = '';
+          document.getElementById('forgotOtpCode').focus();
+          showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code and choose a new password.`);
+          startForgotResendCooldown();
+        } else {
+          showError(data.message || 'Could not send reset code.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Send Password Reset OTP →';
+        showError('Connection error. Please try again.');
+      }
+    }
+
+    let forgotResendInterval = null;
+    function startForgotResendCooldown() {
+      const resendBtn = document.getElementById('resendForgotOtpBtn');
+      if (!resendBtn) return;
+      let countdown = 60;
+      resendBtn.disabled = true;
+      resendBtn.textContent = `Resend in ${countdown}s`;
+      if (forgotResendInterval) clearInterval(forgotResendInterval);
+      forgotResendInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(forgotResendInterval);
+          forgotResendInterval = null;
+          resendBtn.disabled = false;
+          resendBtn.textContent = 'Resend Code';
+        } else {
+          resendBtn.textContent = `Resend in ${countdown}s`;
+        }
+      }, 1000);
+    }
+
+    function cancelForgotOtpStep() {
+      document.getElementById('forgotResetForm').classList.add('hidden');
+      document.getElementById('forgotPhoneForm').classList.remove('hidden');
+      document.getElementById('forgotPhone').focus();
+    }
+
+    async function handleResetPasswordSubmit(e) {
+      if (e) e.preventDefault();
+      const otp = document.getElementById('forgotOtpCode').value.trim();
+      const newPassword = document.getElementById('forgotNewPassword').value.trim();
+
+      if (!otp || otp.length < 4) {
+        showError('Please enter the 6-digit verification code sent to your phone.');
+        return;
+      }
+      if (!newPassword || newPassword.length < 6) {
+        showError('New password must be at least 6 characters long.');
+        document.getElementById('forgotNewPassword').focus();
+        return;
+      }
+
+      const btn = document.getElementById('resetPasswordBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving New Password & Logging In...';
+
+      try {
+        const res = await fetch('/api/owner/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: activeForgotPhone,
+            otp,
+            newPassword
+          })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          if (data.token) localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          showInfo(data.message || 'Password reset successfully! Redirecting to cockpit...');
+          setTimeout(() => {
+            window.location.href = '/owner/dashboard.html';
+          }, 800);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Save New Password & Open Cockpit →';
+          showError(data.message || 'Failed to reset password. Please check your OTP code.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Save New Password & Open Cockpit →';
+        showError('Connection error. Please try again.');
       }
     }
 

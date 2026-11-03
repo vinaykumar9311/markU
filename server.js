@@ -160,7 +160,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const limiterOpts = { standardHeaders: true, legacyHeaders: false };
 app.use('/api', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 300, message: { success: false, message: 'Too many requests. Slow down.' } }));
-app.use(['/api/owner/login', '/api/owner/register', '/api/customer/verify-otp', '/api/customer/send-otp'],
+app.use(['/api/owner/login', '/api/owner/register', '/api/customer/verify-otp', '/api/customer/send-otp', '/api/owner/forgot-password/send-otp', '/api/owner/reset-password'],
   rateLimit({ ...limiterOpts, windowMs: 15 * 60 * 1000, limit: 20, message: { success: false, message: 'Too many attempts. Try again in 15 minutes.' } }));
 app.use('/api/claim-stamp', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 20, message: { success: false, message: 'Too many scan attempts. Please wait a minute.' } }));
 
@@ -681,6 +681,27 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
   // Fast2SMS Integration (Dual-Route: Low-cost OTP route (~₹0.25) with Quick SMS fallback (~₹5.00))
   if (process.env.FAST2SMS_API_KEY) {
     try {
+      // Attempt 0: Fast2SMS Smart OTP endpoint if operator configured FAST2SMS_OTP_ID
+      if (process.env.FAST2SMS_OTP_ID) {
+        const smartRes = await fetch('https://www.fast2sms.com/dev/otp/send', {
+          method: 'POST',
+          headers: {
+            'authorization': process.env.FAST2SMS_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mobile: tenDigitPhone,
+            otp_id: process.env.FAST2SMS_OTP_ID
+          })
+        });
+        const smartData = await smartRes.json();
+        if (smartData && smartData.return) {
+          console.log('[Fast2SMS] Delivered via Smart OTP route:', smartData.request_id);
+          return { sent: true, provider: 'fast2sms_smart_otp' };
+        }
+        console.warn('[Fast2SMS Notice] Smart OTP attempt status:', smartData?.message || smartData);
+      }
+
       // Attempt 1: Ultra-cheap Fast2SMS OTP Route (~₹0.20-0.25/SMS, unlocked via website verification)
       const otpRes = await fetch('https://www.fast2sms.com/dev/bulkV2', {
         method: 'POST',
@@ -938,9 +959,9 @@ app.post('/api/owner/verify-otp', async (req, res) => {
   });
 });
 
-// 3. Complete Phone Registration (Create Shop without password)
+// 3. Complete Phone Registration (Create Shop with optional password)
 app.post('/api/owner/phone-register', async (req, res) => {
-  const { phone, regToken, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
+  const { phone, regToken, shopName, slug, rewardDescription, stampsTarget, cooldownHours, password } = req.body;
   if (!shopName || !shopName.trim()) {
     return res.status(400).json({ success: false, message: 'Shop name is required.' });
   }
@@ -963,6 +984,7 @@ app.post('/api/owner/phone-register', async (req, res) => {
   const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
   const ownerEmail = `${cleanDigits}@owner.marku.local`;
   const cleanSlug = (slug || shopName).toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+  const passHash = (password && String(password).trim().length >= 4) ? hashPassword(password) : '';
 
   const db = loadLocalDb();
 
@@ -1032,12 +1054,15 @@ app.post('/api/owner/phone-register', async (req, res) => {
 
   if (supabase) {
     try {
-      await supabase.from('owners').upsert({
+      const upsertPayload = {
         id: userId,
         phone: verifiedPhone,
         email: ownerEmail,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      };
+      if (passHash) upsertPayload.password_hash = passHash;
+
+      await supabase.from('owners').upsert(upsertPayload, { onConflict: 'id' });
 
       const { data: s, error: sErr } = await supabase.from('shops').insert({
         owner_id: userId,
@@ -1078,7 +1103,7 @@ app.post('/api/owner/phone-register', async (req, res) => {
     id: userId,
     phone: verifiedPhone,
     email: ownerEmail,
-    passwordHash: '',
+    passwordHash: passHash,
     shopSlug: cleanSlug,
     createdAt: Date.now()
   };
@@ -1101,6 +1126,193 @@ app.post('/api/owner/phone-register', async (req, res) => {
       rewardDescription: createdShop.reward_description || createdShop.rewardDescription,
       stampsTarget: targetStamps
     }
+  });
+});
+
+// 3.5 Owner Forgot Password: Send Reset OTP
+app.post('/api/owner/forgot-password/send-otp', async (req, res) => {
+  const { phone } = req.body;
+  const rawP = (phone || '').trim();
+  if (!rawP || rawP.includes('@')) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid registered mobile number.' });
+  }
+
+  const cleanPhone = normalizePhoneNumber(rawP);
+  const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+  const last10 = cleanDigits.slice(-10);
+
+  // Check if owner actually exists with this number
+  const db = loadLocalDb();
+  let owner = Object.values(db.owners).find(o => 
+    matchPhone(o.phone, cleanPhone) ||
+    (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
+  );
+
+  if (!owner && supabase) {
+    try {
+      const { data: suOwner } = await supabase
+        .from('owners')
+        .select('*')
+        .or(`phone.eq.${cleanPhone},phone.eq.${cleanDigits},phone.ilike.%${last10}%,email.eq.${cleanDigits}@owner.marku.local`)
+        .maybeSingle();
+      if (suOwner) {
+        owner = suOwner;
+      }
+    } catch (e) {}
+  }
+
+  if (!owner) {
+    return res.status(404).json({
+      success: false,
+      message: `No registered shop account found for ${cleanPhone}. Please verify your phone number or enroll your shop first.`
+    });
+  }
+
+  // 60-second cooldown protection per number
+  const resetKey = `reset_${cleanPhone}`;
+  const existingRecord = ownerOtpStore.get(resetKey);
+  if (existingRecord && existingRecord.lastSentAt && (Date.now() - existingRecord.lastSentAt < 60000)) {
+    const remainingSec = Math.ceil((60000 - (Date.now() - existingRecord.lastSentAt)) / 1000);
+    return res.status(429).json({
+      success: false,
+      message: `Please wait ${remainingSec}s before requesting another reset code.`
+    });
+  }
+
+  const otp = String(crypto.randomInt(100000, 999999));
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  const lastSentAt = Date.now();
+
+  const otpPayload = { otp, expiresAt, lastSentAt, attempts: 0, phone: cleanPhone };
+  ownerOtpStore.set(resetKey, otpPayload);
+  if (cleanDigits.length >= 10) {
+    ownerOtpStore.set(`reset_${cleanDigits.slice(-10)}`, otpPayload);
+  }
+
+  await dispatchOtpSms(cleanPhone, otp, 'MarkU Password Reset');
+
+  return res.json({
+    success: true,
+    message: `Password reset verification code sent to ${cleanPhone}. Please check your phone SMS.`,
+    phone: cleanPhone
+  });
+});
+
+// 3.6 Owner Reset Password (Verify OTP + Set New Password)
+app.post('/api/owner/reset-password', async (req, res) => {
+  const { phone, otp, newPassword } = req.body;
+  const rawP = (phone || '').trim();
+  const enteredOtp = String(otp || '').trim();
+  const pass = String(newPassword || '').trim();
+
+  if (!rawP || !enteredOtp) {
+    return res.status(400).json({ success: false, message: 'Mobile number and verification code are required.' });
+  }
+
+  if (!pass || pass.length < 6) {
+    return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
+  }
+
+  const cleanPhone = normalizePhoneNumber(rawP);
+  const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+  const last10 = cleanDigits.slice(-10);
+
+  const resetKey = `reset_${cleanPhone}`;
+  const record = ownerOtpStore.get(resetKey) || ownerOtpStore.get(`reset_${last10}`);
+
+  if (!record) {
+    return res.status(400).json({ success: false, message: 'No active password reset request found or code expired. Please request a new code.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    ownerOtpStore.delete(resetKey);
+    ownerOtpStore.delete(`reset_${last10}`);
+    return res.status(400).json({ success: false, message: 'Verification code expired. Please request a new code.' });
+  }
+
+  if (record.attempts >= 5) {
+    ownerOtpStore.delete(resetKey);
+    ownerOtpStore.delete(`reset_${last10}`);
+    return res.status(429).json({ success: false, message: 'Too many incorrect attempts. Please request a new code.' });
+  }
+
+  if (record.otp !== enteredOtp) {
+    record.attempts += 1;
+    return res.status(400).json({ success: false, message: 'Incorrect verification code. Please check and try again.' });
+  }
+
+  // Clear consumed OTP
+  ownerOtpStore.delete(resetKey);
+  ownerOtpStore.delete(`reset_${last10}`);
+
+  const passHash = hashPassword(pass);
+  const db = loadLocalDb();
+
+  // Find owner in local DB
+  let owner = Object.values(db.owners).find(o => 
+    matchPhone(o.phone, cleanPhone) ||
+    (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
+  );
+
+  let ownerId = owner ? owner.id : null;
+  let ownerEmail = owner ? owner.email : `${cleanDigits}@owner.marku.local`;
+
+  if (supabase) {
+    try {
+      const { data: suOwner } = await supabase
+        .from('owners')
+        .select('*')
+        .or(`phone.eq.${cleanPhone},phone.eq.${cleanDigits},phone.ilike.%${last10}%,email.eq.${cleanDigits}@owner.marku.local`)
+        .maybeSingle();
+
+      if (suOwner) {
+        ownerId = suOwner.id;
+        ownerEmail = suOwner.email || ownerEmail;
+        await supabase
+          .from('owners')
+          .update({ password_hash: passHash, updated_at: new Date().toISOString() })
+          .eq('id', suOwner.id);
+      }
+    } catch (e) {
+      console.warn('[Supabase password update note]:', e.message);
+    }
+  }
+
+  if (owner) {
+    owner.passwordHash = passHash;
+    db.owners[cleanPhone] = owner;
+    if (owner.email) db.owners[owner.email] = owner;
+    saveLocalDb(db);
+  }
+
+  // Find shop for instant login
+  let shop = null;
+  if (owner && owner.shopSlug && db.shops[owner.shopSlug]) {
+    shop = db.shops[owner.shopSlug];
+  }
+  if (!shop && supabase && ownerId) {
+    try {
+      const { data: s } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
+      if (s) shop = s;
+    } catch (e) {}
+  }
+  if (!shop) {
+    shop = Object.values(db.shops).find(s => s.ownerId === ownerId || s.owner_id === ownerId);
+  }
+
+  const token = signOwnerToken(ownerId || crypto.randomUUID(), ownerEmail, cleanPhone);
+
+  return res.json({
+    success: true,
+    message: 'Password reset successfully! You are now logged into your cockpit.',
+    token,
+    shop: shop ? {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+      stampsTarget: shop.stamps_target || shop.stampsTarget || 10
+    } : null
   });
 });
 
@@ -1194,24 +1406,45 @@ app.post('/api/owner/login', async (req, res) => {
     });
   }
 
-  // 2. Email + Password Login Fallback
-  if (email && password) {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPass = password.trim();
+  // 2. Mobile Number / Email + Password Login
+  const loginIdentifier = (req.body.identifier || req.body.email || req.body.phone || '').trim();
+  if (loginIdentifier && password) {
+    const cleanPass = String(password).trim();
+    const isEmail = loginIdentifier.includes('@');
+    const cleanEmail = isEmail ? loginIdentifier.toLowerCase() : '';
+    const cleanPhone = !isEmail ? normalizePhoneNumber(loginIdentifier) : '';
+    const cleanDigits = cleanPhone ? cleanPhone.replace(/[^0-9]/g, '') : '';
+    const last10 = cleanDigits ? cleanDigits.slice(-10) : '';
+
     const db = loadLocalDb();
-    let owner = db.owners[cleanEmail];
+    let owner = null;
+    if (isEmail) {
+      owner = db.owners[cleanEmail];
+    } else {
+      owner = Object.values(db.owners).find(o => 
+        matchPhone(o.phone, cleanPhone) ||
+        (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
+      );
+    }
 
     if (!owner && supabase) {
       try {
-        const { data: suOwner } = await supabase.from('owners').select('*').eq('email', cleanEmail).maybeSingle();
+        let query = supabase.from('owners').select('*');
+        if (isEmail) {
+          query = query.eq('email', cleanEmail);
+        } else {
+          query = query.or(`phone.eq.${cleanPhone},phone.eq.${cleanDigits},phone.ilike.%${last10}%,email.eq.${cleanDigits}@owner.marku.local`);
+        }
+        const { data: suOwner } = await query.maybeSingle();
         if (suOwner) {
           owner = {
             id: suOwner.id,
-            email: suOwner.email,
-            phone: suOwner.phone,
+            email: suOwner.email || (cleanDigits ? `${cleanDigits}@owner.marku.local` : ''),
+            phone: suOwner.phone || cleanPhone,
             passwordHash: suOwner.password_hash,
             createdAt: suOwner.created_at ? new Date(suOwner.created_at).getTime() : Date.now()
           };
+          if (cleanPhone) db.owners[cleanPhone] = owner;
         }
       } catch (e) {}
     }
@@ -1234,7 +1467,7 @@ app.post('/api/owner/login', async (req, res) => {
       return res.json({
         success: true,
         message: 'Logged in successfully!',
-        token: signOwnerToken(owner.id, cleanEmail, owner.phone || null),
+        token: signOwnerToken(owner.id, owner.email || `${cleanDigits}@owner.marku.local`, owner.phone || cleanPhone),
         shop: shop ? {
           id: shop.id,
           name: shop.name,
@@ -1245,7 +1478,21 @@ app.post('/api/owner/login', async (req, res) => {
       });
     }
 
-    if (supabase) {
+    if (owner && !owner.passwordHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'No password has been set for this account yet. Please sign in with Mobile OTP, or use "Forgot Password" to set a password.'
+      });
+    }
+
+    if (owner && owner.passwordHash && !verifyPassword(cleanPass, owner.passwordHash)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Incorrect password. Please try again or click "Forgot Password".'
+      });
+    }
+
+    if (isEmail && supabase) {
       try {
         const { data: sessionData, error: authErr } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
@@ -1274,10 +1521,10 @@ app.post('/api/owner/login', async (req, res) => {
       } catch (e) {}
     }
 
-    return res.status(401).json({ success: false, message: 'Invalid email or password. Please check your credentials.' });
+    return res.status(401).json({ success: false, message: 'Invalid credentials. Please check your mobile/email or password.' });
   }
 
-  return res.status(400).json({ success: false, message: 'Please provide either mobile number with OTP or email with password.' });
+  return res.status(400).json({ success: false, message: 'Please provide either mobile number with OTP or mobile/email with password.' });
 });
 
 // --------------------------------------------------------------------
