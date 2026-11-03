@@ -85,17 +85,17 @@
         <label for="ownerPhone" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Mobile Number</label>
         <div class="flex gap-2">
           <select id="ownerCountryCode" class="bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-2.5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono shrink-0 cursor-pointer">
-            <option value="+91" selected>🇮🇳 +91</option>
-            <option value="+1">🇺🇸 +1</option>
-            <option value="+44">🇬🇧 +44</option>
-            <option value="+971">🇦🇪 +971</option>
-            <option value="+61">🇦🇺 +61</option>
-            <option value="+65">🇸🇬 +65</option>
-            <option value="+49">🇩🇪 +49</option>
-            <option value="+33">🇫🇷 +33</option>
-            <option value="+81">🇯🇵 +81</option>
-            <option value="+966">🇸🇦 +966</option>
-            <option value="">🌐 Other</option>
+            <option value="+91" selected style="background-color: #17171c; color: #ffffff;">🇮🇳 +91</option>
+            <option value="+1" style="background-color: #17171c; color: #ffffff;">🇺🇸 +1</option>
+            <option value="+44" style="background-color: #17171c; color: #ffffff;">🇬🇧 +44</option>
+            <option value="+971" style="background-color: #17171c; color: #ffffff;">🇦🇪 +971</option>
+            <option value="+61" style="background-color: #17171c; color: #ffffff;">🇦🇺 +61</option>
+            <option value="+65" style="background-color: #17171c; color: #ffffff;">🇸🇬 +65</option>
+            <option value="+49" style="background-color: #17171c; color: #ffffff;">🇩🇪 +49</option>
+            <option value="+33" style="background-color: #17171c; color: #ffffff;">🇫🇷 +33</option>
+            <option value="+81" style="background-color: #17171c; color: #ffffff;">🇯🇵 +81</option>
+            <option value="+966" style="background-color: #17171c; color: #ffffff;">🇸🇦 +966</option>
+            <option value="" style="background-color: #17171c; color: #ffffff;">🌐 Other</option>
           </select>
           <input type="tel" id="ownerPhone" required placeholder="Phone number"
             class="flex-1 bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
@@ -110,7 +110,7 @@
     </form>
 
     <!-- STEP 2: Phone OTP Verification Section (Hidden initially) -->
-    <div id="otpSection" class="hidden space-y-4 pt-1">
+    <form id="otpSection" onsubmit="handleVerifyOtpAndLogin(event)" class="hidden space-y-4 pt-1">
       <div class="text-center space-y-1">
         <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
           <span>✓ OTP Dispatched</span>
@@ -121,11 +121,13 @@
       <!-- 6-Digit OTP Input -->
       <div class="space-y-1.5">
         <label for="otpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
-        <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •" autocomplete="one-time-code"
+        <input type="text" id="otpCodeInput" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
+          oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6) handleVerifyOtpAndLogin();"
+          onkeydown="if(event.key === 'Enter') { event.preventDefault(); handleVerifyOtpAndLogin(); }"
           class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
       </div>
 
-      <button type="button" onclick="handleVerifyOtpAndLogin()" id="verifyOtpBtn"
+      <button type="submit" id="verifyOtpBtn"
         class="w-full btn-gold font-bold py-3.5 rounded-xl text-sm transition-all shadow-md">
         Verify OTP & Open Cockpit &rarr;
       </button>
@@ -134,7 +136,7 @@
         <button type="button" id="resendOwnerOtpBtn" onclick="handleSendPhoneOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
         <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile Number</button>
       </div>
-    </div>
+    </form>
 
     <!-- TAB 2: Email & Password Form (Hidden initially) -->
     <form id="emailLoginForm" onsubmit="handleEmailLogin(event)" class="space-y-4 pt-1 hidden">
@@ -169,11 +171,22 @@
   <script>
     let activePhone = '';
 
+    function cleanPhoneNumber(raw, countryCode = '+91') {
+      if (!raw) return '';
+      let str = String(raw).trim().replace(/[\s\-\(\)]/g, '');
+      if (str.startsWith('+')) return str;
+      if (countryCode === '+91') {
+        if (str.startsWith('0') && str.length === 11) str = str.slice(1);
+        if (str.startsWith('91') && str.length === 12) str = str.slice(2);
+      }
+      return countryCode + str;
+    }
+
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
       const infoBanner = document.getElementById('infoBanner');
       if (infoBanner) infoBanner.classList.add('hidden');
-      errorBanner.textContent = msg;
+      errorBanner.innerHTML = msg;
       errorBanner.classList.remove('hidden');
     }
 
@@ -224,12 +237,15 @@
         return;
       }
 
-      const phone = rawPhone.startsWith('+') ? rawPhone : (countryCode + rawPhone);
+      const phone = cleanPhoneNumber(rawPhone, countryCode);
       activePhone = phone;
+
       const btn = document.getElementById('sendOtpBtn');
       const btnText = document.getElementById('sendOtpBtnText');
-      btn.disabled = true;
-      btnText.textContent = 'Generating OTP...';
+      const resendBtn = document.getElementById('resendOwnerOtpBtn');
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = 'Generating OTP...';
+      if (resendBtn) resendBtn.disabled = true;
 
       try {
         const res = await fetch('/api/owner/send-otp', {
@@ -238,8 +254,8 @@
           body: JSON.stringify({ phone })
         });
         const data = await res.json();
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile →';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Send OTP to Mobile →';
 
         if (data.success) {
           document.getElementById('phoneForm').classList.add('hidden');
@@ -251,11 +267,13 @@
           showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
           startOwnerResendCooldown();
         } else {
+          if (resendBtn) resendBtn.disabled = false;
           showError(data.message || 'Could not send verification OTP.');
         }
       } catch (err) {
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile →';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Send OTP to Mobile →';
+        if (resendBtn) resendBtn.disabled = false;
         showError('Connection error. Please try again.');
       }
     }
@@ -282,7 +300,8 @@
     }
 
     // Step 2: Verify Phone OTP & Open Dashboard
-    async function handleVerifyOtpAndLogin() {
+    async function handleVerifyOtpAndLogin(e) {
+      if (e) e.preventDefault();
       const otp = document.getElementById('otpCodeInput').value.trim();
       if (!otp || otp.length < 4) {
         showError('Please enter the 6-digit OTP code.');

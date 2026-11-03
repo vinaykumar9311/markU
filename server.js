@@ -215,6 +215,14 @@ function normalizePhoneNumber(raw) {
 
   // Explicit international format with plus (e.g. +14155552671, +447911123456, +971501234567)
   if (str.startsWith('+')) {
+    // If India country code (+91) has extra leading zero (e.g. +9109311594509), strip the 0
+    if (digits.startsWith('910') && digits.length === 13) {
+      return '+91' + digits.slice(3);
+    }
+    // If India country code (+91) has duplicate 91 (e.g. +91919311594509), strip the duplicate
+    if (digits.startsWith('9191') && digits.length === 14) {
+      return '+91' + digits.slice(4);
+    }
     return '+' + digits;
   }
   // International format with 00 prefix (e.g. 001..., 0044...)
@@ -959,14 +967,47 @@ app.post('/api/owner/phone-register', async (req, res) => {
   const db = loadLocalDb();
 
   // Check if owner phone is already registered to a shop
+  let userId = crypto.randomUUID();
   const existingOwner = Object.values(db.owners).find(o => matchPhone(o.phone, verifiedPhone));
   if (existingOwner) {
-    const existingShop = db.shops[existingOwner.shopSlug] || Object.values(db.shops).find(s => s.ownerId === existingOwner.id || s.owner_id === existingOwner.id);
-    return res.status(409).json({
-      success: false,
-      message: `An account already exists for ${verifiedPhone}. Each mobile number can only register one shop. Please sign in.`,
-      shop: existingShop ? { name: existingShop.name, slug: existingShop.slug } : null
-    });
+    userId = existingOwner.id || userId;
+    let existingShop = db.shops[existingOwner.shopSlug] || Object.values(db.shops).find(s => s.ownerId === existingOwner.id || s.owner_id === existingOwner.id);
+    if (!existingShop && supabase && existingOwner.id) {
+      try {
+        const { data: suShop } = await supabase.from('shops').select('id, name, slug').eq('owner_id', existingOwner.id).maybeSingle();
+        if (suShop) existingShop = suShop;
+      } catch (e) {}
+    }
+    if (existingShop) {
+      return res.status(409).json({
+        success: false,
+        message: `An account already exists for ${verifiedPhone}. Each mobile number can only register one shop. Please sign in.`,
+        shop: { name: existingShop.name, slug: existingShop.slug }
+      });
+    }
+  }
+
+  // Check Supabase for existing owner or existing shop
+  if (supabase) {
+    try {
+      const { data: suOwner } = await supabase
+        .from('owners')
+        .select('id, phone')
+        .or(`phone.eq.${verifiedPhone},phone.eq.${cleanDigits},phone.ilike.%${cleanDigits.slice(-10)}%`)
+        .maybeSingle();
+
+      if (suOwner) {
+        userId = suOwner.id;
+        const { data: suShop } = await supabase.from('shops').select('id, name, slug').eq('owner_id', suOwner.id).maybeSingle();
+        if (suShop) {
+          return res.status(409).json({
+            success: false,
+            message: `An account already exists for ${verifiedPhone}. Each mobile number can only register one shop. Please sign in.`,
+            shop: { name: suShop.name, slug: suShop.slug }
+          });
+        }
+      }
+    } catch (e) {}
   }
 
   if (db.shops[cleanSlug]) {
@@ -985,7 +1026,6 @@ app.post('/api/owner/phone-register', async (req, res) => {
   const shopSecret = crypto.randomBytes(32).toString('hex');
   const cooldown = parseFloat(cooldownHours) || 7;
   const targetStamps = parseInt(stampsTarget, 10) || 10;
-  const userId = crypto.randomUUID();
   const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
 
   let createdShop = null;

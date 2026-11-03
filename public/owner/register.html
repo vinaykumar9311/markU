@@ -121,36 +121,36 @@
     <div id="phoneVerificationBlock" class="space-y-4">
       
       <!-- Phone Entry Sub-step -->
-      <div id="phoneInputStep" class="space-y-3">
+      <form id="phoneInputStep" onsubmit="handleSendRegistrationOtp(event)" class="space-y-3">
         <label for="ownerPhone" class="block text-xs font-bold text-gray-300 uppercase tracking-wider">
           Owner Mobile Number (For Instant OTP)
         </label>
         <div class="flex gap-2">
           <select id="regCountryCode" class="bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-2.5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono shrink-0 cursor-pointer">
-            <option value="+91" selected>🇮🇳 +91</option>
-            <option value="+1">🇺🇸 +1</option>
-            <option value="+44">🇬🇧 +44</option>
-            <option value="+971">🇦🇪 +971</option>
-            <option value="+61">🇦🇺 +61</option>
-            <option value="+65">🇸🇬 +65</option>
-            <option value="+49">🇩🇪 +49</option>
-            <option value="+33">🇫🇷 +33</option>
-            <option value="+81">🇯🇵 +81</option>
-            <option value="+966">🇸🇦 +966</option>
-            <option value="">🌐 Other</option>
+            <option value="+91" selected style="background-color: #17171c; color: #ffffff;">🇮🇳 +91</option>
+            <option value="+1" style="background-color: #17171c; color: #ffffff;">🇺🇸 +1</option>
+            <option value="+44" style="background-color: #17171c; color: #ffffff;">🇬🇧 +44</option>
+            <option value="+971" style="background-color: #17171c; color: #ffffff;">🇦🇪 +971</option>
+            <option value="+61" style="background-color: #17171c; color: #ffffff;">🇦🇺 +61</option>
+            <option value="+65" style="background-color: #17171c; color: #ffffff;">🇸🇬 +65</option>
+            <option value="+49" style="background-color: #17171c; color: #ffffff;">🇩🇪 +49</option>
+            <option value="+33" style="background-color: #17171c; color: #ffffff;">🇫🇷 +33</option>
+            <option value="+81" style="background-color: #17171c; color: #ffffff;">🇯🇵 +81</option>
+            <option value="+966" style="background-color: #17171c; color: #ffffff;">🇸🇦 +966</option>
+            <option value="" style="background-color: #17171c; color: #ffffff;">🌐 Other</option>
           </select>
           <input type="tel" id="ownerPhone" required placeholder="Phone number"
             class="flex-1 bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
         </div>
-        <button type="button" onclick="handleSendRegistrationOtp()" id="sendRegOtpBtn"
+        <button type="submit" id="sendRegOtpBtn"
           class="w-full bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
           <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
           <span id="sendRegOtpBtnText">Send OTP to Mobile Number &rarr;</span>
         </button>
-      </div>
+      </form>
 
       <!-- OTP Entry Sub-step (Hidden initially) -->
-      <div id="otpInputStep" class="hidden space-y-3.5 bg-[#17171c]/90 border border-emerald-500/40 rounded-2xl p-4">
+      <form id="otpInputStep" onsubmit="handleVerifyRegistrationOtp(event)" class="hidden space-y-3.5 bg-[#17171c]/90 border border-emerald-500/40 rounded-2xl p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -163,11 +163,13 @@
           <label for="regOtpCode" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center mb-1">
             Enter 6-Digit Code
           </label>
-          <input type="text" id="regOtpCode" maxlength="6" placeholder="• • • • • •"
+          <input type="text" id="regOtpCode" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
+            oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6) handleVerifyRegistrationOtp();"
+            onkeydown="if(event.key === 'Enter') { event.preventDefault(); handleVerifyRegistrationOtp(); }"
             class="w-full bg-[#121215] border border-emerald-500/50 rounded-xl px-3 py-2.5 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
         </div>
 
-        <button type="button" onclick="handleVerifyRegistrationOtp()" id="verifyRegOtpBtn"
+        <button type="submit" id="verifyRegOtpBtn"
           class="w-full btn-gold font-bold py-2.5 rounded-xl text-xs transition-all shadow">
           Verify OTP Code &rarr;
         </button>
@@ -176,7 +178,7 @@
           <button type="button" id="resendRegOtpBtn" onclick="handleSendRegistrationOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
           <button type="button" onclick="cancelRegOtp()" class="hover:text-gray-200">Change Phone</button>
         </div>
-      </div>
+      </form>
 
       <!-- Phone Verified Badge (Shown once verified) -->
       <div id="phoneVerifiedBadge" class="hidden bg-emerald-950/40 border border-emerald-500/40 rounded-2xl p-4 flex items-center justify-between">
@@ -480,11 +482,35 @@
     let verifiedPhone = '';
     let verifiedRegToken = '';
 
+    function cleanPhoneNumber(raw, countryCode = '+91') {
+      if (!raw) return '';
+      let str = String(raw).trim().replace(/[\s\-\(\)]/g, '');
+      if (str.startsWith('+')) return str;
+      if (countryCode === '+91') {
+        if (str.startsWith('0') && str.length === 11) str = str.slice(1);
+        if (str.startsWith('91') && str.length === 12) str = str.slice(2);
+      }
+      return countryCode + str;
+    }
+
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
       const infoBanner = document.getElementById('infoBanner');
       if (infoBanner) infoBanner.classList.add('hidden');
-      errorBanner.textContent = msg;
+
+      let html = msg;
+      if (msg && (msg.includes('already exists') || msg.includes('register one shop') || msg.includes('Please sign in'))) {
+        html = `<div>${msg}</div>
+        <div class="mt-2.5 pt-2 border-t border-red-500/30 flex items-center justify-between gap-2">
+          <span class="text-xs text-red-200 font-semibold">Already have a cockpit account?</span>
+          <a href="/owner/login.html" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold text-xs shadow transition-all shrink-0">
+            <span>Sign In with OTP</span>
+            <span>&rarr;</span>
+          </a>
+        </div>`;
+      }
+
+      errorBanner.innerHTML = html;
       errorBanner.classList.remove('hidden');
     }
 
@@ -497,9 +523,13 @@
     }
 
     function autoSlug() {
-      const name = document.getElementById('shopName').value;
+      const name = document.getElementById('shopName').value.trim();
       const slugInput = document.getElementById('slug');
-      slugInput.value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      let s = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (!s) {
+        s = 'shop-' + Math.floor(1000 + Math.random() * 9000);
+      }
+      slugInput.value = s;
     }
 
     // Initialize state on load
@@ -528,7 +558,8 @@
       showInfo(`Mobile number ${phone} verified successfully! Enter your shop details.`);
     }
 
-    function resetPhoneStep() {
+    function resetPhoneStep(keepPhoneValue = true) {
+      const savedPhone = verifiedPhone;
       verifiedPhone = '';
       verifiedRegToken = '';
       sessionStorage.removeItem('owner_reg_token');
@@ -537,16 +568,22 @@
       document.getElementById('registerForm').classList.add('hidden');
       document.getElementById('otpInputStep').classList.add('hidden');
       document.getElementById('phoneInputStep').classList.remove('hidden');
+      if (keepPhoneValue && savedPhone) {
+        const phoneInput = document.getElementById('ownerPhone');
+        phoneInput.value = savedPhone.replace(/^\+91/, '').replace(/^\+/, '');
+      }
       document.getElementById('ownerPhone').focus();
     }
 
     function cancelRegOtp() {
       document.getElementById('otpInputStep').classList.add('hidden');
       document.getElementById('phoneInputStep').classList.remove('hidden');
+      document.getElementById('ownerPhone').focus();
     }
 
     // Step 1: Send OTP
-    async function handleSendRegistrationOtp() {
+    async function handleSendRegistrationOtp(e) {
+      if (e) e.preventDefault();
       const codeSelect = document.getElementById('regCountryCode');
       const countryCode = codeSelect ? codeSelect.value : '+91';
       const phoneInput = document.getElementById('ownerPhone');
@@ -558,12 +595,14 @@
         return;
       }
 
-      const phone = rawPhone.startsWith('+') ? rawPhone : (countryCode + rawPhone);
+      const phone = cleanPhoneNumber(rawPhone, countryCode);
 
       const btn = document.getElementById('sendRegOtpBtn');
       const btnText = document.getElementById('sendRegOtpBtnText');
-      btn.disabled = true;
-      btnText.textContent = 'Generating OTP...';
+      const resendBtn = document.getElementById('resendRegOtpBtn');
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = 'Generating OTP...';
+      if (resendBtn) resendBtn.disabled = true;
 
       try {
         const res = await fetch('/api/owner/send-otp', {
@@ -572,8 +611,8 @@
           body: JSON.stringify({ phone })
         });
         const data = await res.json();
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile Number →';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Send OTP to Mobile Number →';
 
         if (data.success) {
           verifiedPhone = data.phone || phone;
@@ -585,11 +624,13 @@
           showInfo(`Verification code sent to ${data.phone || phone}. Enter the 6-digit code received on your phone.`);
           startRegResendCooldown();
         } else {
+          if (resendBtn) resendBtn.disabled = false;
           showError(data.message || 'Could not send verification OTP.');
         }
       } catch (err) {
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile Number →';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Send OTP to Mobile Number →';
+        if (resendBtn) resendBtn.disabled = false;
         showError('Network error. Please try again.');
       }
     }
@@ -616,7 +657,8 @@
     }
 
     // Step 2: Verify OTP
-    async function handleVerifyRegistrationOtp() {
+    async function handleVerifyRegistrationOtp(e) {
+      if (e) e.preventDefault();
       const otp = document.getElementById('regOtpCode').value.trim();
       if (!otp || otp.length < 4) {
         showError('Please enter the 6-digit verification code.');
@@ -706,6 +748,11 @@
           // Open subscription modal
           document.getElementById('subscriptionModal').classList.remove('hidden');
         } else {
+          if (data.message && data.message.includes('expired')) {
+            showError('Verification session expired. Please verify your mobile number again.');
+            resetPhoneStep(true);
+            return;
+          }
           showError(data.message || 'Registration failed. Try a different shop slug.');
           mainBtn.disabled = false;
           mainBtn.textContent = 'Continue to Plan Selection →';

@@ -149,7 +149,7 @@
       </form>
 
       <!-- STEP 2: OTP Verification Card (Slide-In) -->
-      <div id="otpSection" class="hidden space-y-4 pt-2 border-t border-gray-800">
+      <form id="otpSection" onsubmit="handleVerifyAndClaim(event)" class="hidden space-y-4 pt-2 border-t border-gray-800">
         <div class="text-center space-y-1">
           <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
             <span>✓ SMS OTP Dispatched</span>
@@ -160,11 +160,13 @@
         <!-- 6-Digit OTP Input -->
         <div class="space-y-1.5">
           <label for="otpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
-          <input type="text" id="otpCodeInput" maxlength="6" placeholder="• • • • • •"
+          <input type="text" id="otpCodeInput" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="• • • • • •" autocomplete="one-time-code"
+            oninput="this.value = this.value.replace(/[^0-9]/g, ''); if (this.value.length === 6) handleVerifyAndClaim();"
+            onkeydown="if (event.key === 'Enter') { event.preventDefault(); handleVerifyAndClaim(); }"
             class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
         </div>
 
-        <button type="button" onclick="handleVerifyAndClaim()" id="verifyOtpBtn"
+        <button type="submit" id="verifyOtpBtn"
           class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
           Verify OTP & Collect Stamp &rarr;
         </button>
@@ -173,7 +175,7 @@
           <button type="button" id="resendOtpBtn" onclick="handleRequestOtp()" class="hover:text-amber-400 underline disabled:opacity-50 disabled:no-underline">Resend OTP</button>
           <button type="button" onclick="cancelOtpStep()" class="hover:text-gray-200">Change Mobile / Email</button>
         </div>
-      </div>
+      </form>
 
     </div>
 
@@ -324,7 +326,8 @@
     }
 
     // 2. Verify OTP & Claim Stamp
-    async function handleVerifyAndClaim() {
+    async function handleVerifyAndClaim(e) {
+      if (e) e.preventDefault();
       const code = document.getElementById('otpCodeInput').value.trim();
       if (!code || code.length < 4) {
         showError('Please enter the 6-digit OTP code.');
