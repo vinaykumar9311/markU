@@ -209,11 +209,31 @@ function verifyPassword(candidate, storedHash) {
 
 function normalizePhoneNumber(raw) {
   if (!raw) return '';
-  let digits = String(raw).replace(/[^0-9]/g, '');
-  if (digits.length === 10) return '+91' + digits;
-  if (digits.length === 12 && digits.startsWith('91')) return '+' + digits;
-  if (digits.startsWith('0') && digits.length === 11) return '+91' + digits.slice(1);
-  return digits.startsWith('+') ? digits : '+' + digits;
+  const str = String(raw).trim();
+  const digits = str.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+
+  // Explicit international format with plus (e.g. +14155552671, +447911123456, +971501234567)
+  if (str.startsWith('+')) {
+    return '+' + digits;
+  }
+  // International format with 00 prefix (e.g. 001..., 0044...)
+  if (digits.startsWith('00')) {
+    return '+' + digits.slice(2);
+  }
+  // Indian 12-digit format starting with 91
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return '+' + digits;
+  }
+  // Indian 11-digit format starting with 0
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return '+91' + digits.slice(1);
+  }
+  // Default 10-digit Indian mobile
+  if (digits.length === 10) {
+    return '+91' + digits;
+  }
+  return '+' + digits;
 }
 
 function matchPhone(p1, p2) {
@@ -606,16 +626,51 @@ function verifyOwnerRegToken(tokenStr) {
 async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
   const cleanPhone = normalizePhoneNumber(rawPhone);
   const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
-  const tenDigitPhone = cleanDigits.slice(-10);
+  const isIndia = cleanPhone.startsWith('+91');
   const message = `${context}: Your verification code is ${otp}. Valid for 5 minutes. Do not share this OTP.`;
 
   console.log(`\n======================================================`);
-  console.log(`[SMS OTP DISPATCH] Message sent to: ${cleanPhone}`);
+  console.log(`[SMS OTP DISPATCH] Target: ${cleanPhone} (${isIndia ? 'India Domestic' : 'International Outside India'})`);
   console.log(`[SMS OTP DISPATCH] Body: "${message}"`);
   console.log(`[SMS OTP DISPATCH] Code: ${otp}`);
   console.log(`======================================================\n`);
 
-  // 1. Fast2SMS Integration (Dual-Route: Low-cost OTP route (~₹0.25) with Quick SMS fallback (~₹5.00))
+  // 1. INTERNATIONAL DESTINATIONS (Outside India: USA, UK, UAE, Canada, Australia, etc.)
+  if (!isIndia) {
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+      try {
+        const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');
+        const body = new URLSearchParams({
+          To: cleanPhone,
+          From: process.env.TWILIO_PHONE_NUMBER,
+          Body: message
+        });
+        const url = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: body.toString()
+        });
+        const data = await res.json();
+        console.log('[Twilio Global SMS Status]:', data?.status || data);
+        if (data && (data.status === 'queued' || data.status === 'sent' || data.sid)) {
+          return { sent: true, provider: 'twilio' };
+        }
+      } catch (err) {
+        console.warn('[Twilio Error]:', err.message);
+      }
+    }
+    console.warn(`[SMS Dispatch] International number ${cleanPhone} received. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER in .env to deliver real global SMS.`);
+    return { sent: true, provider: 'terminal_dispatch' };
+  }
+
+  // 2. DOMESTIC DESTINATIONS (India +91)
+  const tenDigitPhone = cleanDigits.slice(-10);
+
+  // Fast2SMS Integration (Dual-Route: Low-cost OTP route (~₹0.25) with Quick SMS fallback (~₹5.00))
   if (process.env.FAST2SMS_API_KEY) {
     try {
       // Attempt 1: Ultra-cheap Fast2SMS OTP Route (~₹0.20-0.25/SMS, unlocked via website verification)
@@ -662,7 +717,7 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
     }
   }
 
-  // 2. 2Factor.in Integration (Indian SMS Gateway)
+  // 2Factor.in Integration (Indian SMS Gateway)
   if (process.env.TWOFACTOR_API_KEY) {
     try {
       const url = `https://2factor.in/v3/${process.env.TWOFACTOR_API_KEY}/SMS/+91${tenDigitPhone}/${otp}/OTP1`;
@@ -675,7 +730,7 @@ async function dispatchOtpSms(rawPhone, otp, context = 'MarkU') {
     }
   }
 
-  // 3. Twilio SMS Integration
+  // Twilio Fallback for India if Indian Gateways Fail
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
     try {
       const auth = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64');

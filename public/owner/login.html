@@ -83,10 +83,22 @@
     <form id="phoneForm" onsubmit="handleSendPhoneOtp(event)" class="space-y-4 pt-1">
       <div>
         <label for="ownerPhone" class="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">Mobile Number</label>
-        <div class="relative">
-          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs font-bold">📱 +91</span>
-          <input type="tel" id="ownerPhone" required placeholder="9876543210" maxlength="14"
-            class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-16 pr-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
+        <div class="flex gap-2">
+          <select id="ownerCountryCode" class="bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-2.5 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono shrink-0 cursor-pointer">
+            <option value="+91" selected>🇮🇳 +91</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+44">🇬🇧 +44</option>
+            <option value="+971">🇦🇪 +971</option>
+            <option value="+61">🇦🇺 +61</option>
+            <option value="+65">🇸🇬 +65</option>
+            <option value="+49">🇩🇪 +49</option>
+            <option value="+33">🇫🇷 +33</option>
+            <option value="+81">🇯🇵 +81</option>
+            <option value="+966">🇸🇦 +966</option>
+            <option value="">🌐 Other</option>
+          </select>
+          <input type="tel" id="ownerPhone" required placeholder="Phone number"
+            class="flex-1 bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
         </div>
       </div>
 
@@ -201,15 +213,18 @@
     // Step 1: Send Owner Phone OTP
     async function handleSendPhoneOtp(e) {
       if (e) e.preventDefault();
+      const codeSelect = document.getElementById('ownerCountryCode');
+      const countryCode = codeSelect ? codeSelect.value : '+91';
       const phoneInput = document.getElementById('ownerPhone');
-      const phone = phoneInput.value.trim();
+      const rawPhone = phoneInput.value.trim();
 
-      if (!phone || phone.length < 8) {
+      if (!rawPhone || rawPhone.length < 5) {
         showError('Please enter a valid mobile number.');
         phoneInput.focus();
         return;
       }
 
+      const phone = rawPhone.startsWith('+') ? rawPhone : (countryCode + rawPhone);
       activePhone = phone;
       const btn = document.getElementById('sendOtpBtn');
       const btnText = document.getElementById('sendOtpBtnText');
