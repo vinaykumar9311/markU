@@ -8,6 +8,13 @@ const {
   validateShopQrToken,
   signOwnerToken,
   verifyOwnerToken,
+  signUserAccessToken,
+  verifyUserAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  signCustomerSessionToken,
+  verifyCustomerSessionToken,
+  verifyGoogleToken,
   signCustomerOtpToken,
   verifyCustomerOtpToken,
   hashPassword,
@@ -147,4 +154,73 @@ test('matchPhone accurately matches phone numbers across international and local
   assert.equal(matchPhone('9876543210', '9876543299'), false);
   assert.equal(matchPhone('', '9876543210'), false);
   assert.equal(matchPhone(null, '9876543210'), false);
+});
+
+test('Short-lived 15-minute Access JWT lifecycle and HMAC verification', () => {
+  const token = signUserAccessToken({ userId: 'u_123', email: 'owner@example.com', role: 'owner', shopId: 's_456' });
+  assert.ok(token, 'Access JWT must be generated');
+  assert.equal(token.split('.').length, 3, 'JWT must have header.payload.signature structure');
+
+  const payload = verifyUserAccessToken(token);
+  assert.ok(payload, 'Access JWT must verify successfully');
+  assert.equal(payload.userId, 'u_123');
+  assert.equal(payload.email, 'owner@example.com');
+  assert.equal(payload.role, 'owner');
+  assert.equal(payload.shopId, 's_456');
+
+  // Tampered token must fail
+  assert.equal(verifyUserAccessToken(token + 'tampered'), null);
+});
+
+test('Long-lived Refresh Token lifecycle and validation', () => {
+  const { token, tokenId } = signRefreshToken('u_123', 'owner', 'fp_hash_789', 30);
+  assert.ok(token, 'Refresh token must be generated');
+  assert.ok(tokenId, 'Token ID must be present');
+
+  const payload = verifyRefreshToken(token);
+  assert.ok(payload, 'Refresh token must verify successfully');
+  assert.equal(payload.userId, 'u_123');
+  assert.equal(payload.role, 'owner');
+  assert.equal(payload.deviceFingerprint, 'fp_hash_789');
+
+  // Tampered token must fail
+  assert.equal(verifyRefreshToken(token + 'bad'), null);
+});
+
+test('Zero-App-Install 365-day Customer Session Cookie token lifecycle', () => {
+  const customerToken = signCustomerSessionToken('cust_101', 'customer@gmail.com', 'shop_777', 'device_fp_abc');
+  assert.ok(customerToken, 'Customer 365-day session token must be generated');
+
+  const payload = verifyCustomerSessionToken(customerToken);
+  assert.ok(payload, 'Customer token must verify successfully');
+  assert.equal(payload.customerId, 'cust_101');
+  assert.equal(payload.email, 'customer@gmail.com');
+  assert.equal(payload.shopId, 'shop_777');
+  assert.equal(payload.deviceFingerprint, 'device_fp_abc');
+
+  // Token expires in future (~365 days)
+  assert.ok(payload.exp > Date.now() + 300 * 86400 * 1000);
+
+  // Tampered token must fail
+  assert.equal(verifyCustomerSessionToken('bad.token'), null);
+});
+
+test('Google token verification handles structured payload parsing', async () => {
+  const fakePayload = Buffer.from(JSON.stringify({
+    sub: 'google_sub_99999',
+    email: 'testuser@gmail.com',
+    name: 'Test Google User',
+    picture: 'https://lh3.googleusercontent.com/photo.jpg',
+    email_verified: true
+  })).toString('base64url');
+  const dummyJwt = `header.${fakePayload}.sig`;
+
+  const result = await verifyGoogleToken(dummyJwt);
+  assert.equal(result.success, true);
+  assert.equal(result.email, 'testuser@gmail.com');
+  assert.equal(result.name, 'Test Google User');
+  assert.equal(result.googleId, 'google_sub_99999');
+
+  const invalid = await verifyGoogleToken('malformed_string');
+  assert.equal(invalid.success, false);
 });

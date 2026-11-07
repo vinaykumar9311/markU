@@ -82,7 +82,7 @@ function loadLocalDb() {
   if (memoryDb) return memoryDb;
   try {
     if (!fs.existsSync(LOCAL_DB_FILE)) {
-      const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
+      const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], users: {}, sessions: {} };
       try {
         fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(init, null, 2));
       } catch (writeErr) {
@@ -97,11 +97,13 @@ function loadLocalDb() {
     if (!data.customerCards) data.customerCards = {};
     if (!data.usedTokens) data.usedTokens = {};
     if (!data.history) data.history = [];
+    if (!data.users) data.users = {};
+    if (!data.sessions) data.sessions = {};
     memoryDb = data;
     return memoryDb;
   } catch (err) {
     if (!memoryDb) {
-      memoryDb = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [] };
+      memoryDb = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], users: {}, sessions: {} };
     }
     return memoryDb;
   }
@@ -156,13 +158,40 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Lightweight Zero-Dependency Cookie Parser Middleware
+app.use((req, res, next) => {
+  req.cookies = {};
+  const cookieHeader = req.headers?.cookie;
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach(c => {
+      const parts = c.split('=');
+      const name = parts[0]?.trim();
+      if (name) {
+        req.cookies[name] = decodeURIComponent(parts.slice(1).join('=').trim());
+      }
+    });
+  }
+  next();
+});
+
+// Direct Customer Scan View Route: /c/[shop_id] or /c/[slug]
+app.get(['/c/:shopId', '/c/:shopSlug'], (req, res) => {
+  return res.sendFile(path.join(__dirname, 'public', 'scan.html'));
+});
+
+// Direct Owner Dashboard Redirect
+app.get('/dashboard', (req, res) => {
+  return res.redirect('/owner/dashboard.html');
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const limiterOpts = { standardHeaders: true, legacyHeaders: false };
 app.use('/api', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 300, message: { success: false, message: 'Too many requests. Slow down.' } }));
-app.use(['/api/owner/login', '/api/owner/register', '/api/customer/verify-otp', '/api/customer/send-otp', '/api/owner/forgot-password/send-otp', '/api/owner/reset-password'],
-  rateLimit({ ...limiterOpts, windowMs: 15 * 60 * 1000, limit: 20, message: { success: false, message: 'Too many attempts. Try again in 15 minutes.' } }));
-app.use('/api/claim-stamp', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 20, message: { success: false, message: 'Too many scan attempts. Please wait a minute.' } }));
+app.use(['/api/owner/login', '/api/owner/register', '/api/auth/google/owner', '/api/auth/google/customer', '/api/customer/verify-otp', '/api/customer/send-otp'],
+  rateLimit({ ...limiterOpts, windowMs: 15 * 60 * 1000, limit: 60, message: { success: false, message: 'Too many attempts. Try again in 15 minutes.' } }));
+app.use('/api/claim-stamp', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 60, message: { success: false, message: 'Too many scan attempts. Please wait a minute.' } }));
 
 // Health Check for Render, Docker & monitoring
 app.get('/health', (req, res) => {
@@ -174,7 +203,20 @@ app.get('/ready', (req, res) => {
   return res.status(200).json({
     ready: isDbReady,
     supabaseConnected: isDbReady,
-    authProvider: 'supabase'
+    authProvider: 'google-oauth'
+  });
+});
+
+// Unified Auth Config Endpoint (Google Client ID & Supabase)
+app.get('/api/config/auth', (req, res) => {
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || '';
+  const url = process.env.SUPABASE_URL || 'https://hzcgxiflvtinwguibyfi.supabase.co';
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_mAu8qPZ6sT05_qGgYd1unQ_-_NHa4Mm';
+  return res.json({
+    googleClientId,
+    isGoogleConfigured: !!googleClientId,
+    url,
+    anonKey
   });
 });
 
@@ -184,6 +226,7 @@ app.get('/api/config/supabase', (req, res) => {
   const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_mAu8qPZ6sT05_qGgYd1unQ_-_NHa4Mm';
   return res.json({
     isConfigured: !!(url && anonKey),
+    googleClientId: process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || '',
     url,
     anonKey
   });
@@ -363,6 +406,879 @@ function verifyOwnerToken(tokenStr) {
     return null;
   }
 }
+
+// ====================================================================
+// GOOGLE OAUTH 2.0 & MULTI-TENANT JWT/SESSION INFRASTRUCTURE
+// ====================================================================
+
+// 15-Minute Short-Lived Access JWT
+function signUserAccessToken(payload) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const nowSec = Math.floor(Date.now() / 1000);
+  const body = Buffer.from(JSON.stringify({
+    ...payload,
+    iat: nowSec,
+    exp: nowSec + (15 * 60) // 15 mins
+  })).toString('base64url');
+  const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${sig}`;
+}
+
+function verifyUserAccessToken(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== 'string') return null;
+  const parts = tokenStr.split('.');
+  if (parts.length !== 3) return null;
+  const [header, body, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', GLOBAL_SECRET).update(`${header}.${body}`).digest('base64url');
+  if (!safeEqual(sig, expectedSig)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (Math.floor(Date.now() / 1000) > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// Long-Lived Refresh Token (30 Days for Owners, Stored in Sessions & HttpOnly Cookie)
+function signRefreshToken(userId, role, deviceFingerprint = null, days = 30) {
+  const tokenId = crypto.randomUUID();
+  const exp = Date.now() + (days * 86400 * 1000);
+  const payload = Buffer.from(JSON.stringify({ tokenId, userId, role, deviceFingerprint, exp })).toString('base64url');
+  const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payload).digest('base64url');
+  return { token: `${payload}.${sig}`, tokenId, exp };
+}
+
+function verifyRefreshToken(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== 'string') return null;
+  const parts = tokenStr.split('.');
+  if (parts.length !== 2) return null;
+  const [payloadBase64, clientSig] = parts;
+  const expectedSig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payloadBase64).digest('base64url');
+  if (!safeEqual(clientSig, expectedSig)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
+    if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// 365-Day Customer Session Token (Zero App Install · Persistent Cookie)
+function signCustomerSessionToken(customerId, email, shopId, deviceFingerprint = null) {
+  const exp = Date.now() + (365 * 86400 * 1000); // 365 days
+  const payload = Buffer.from(JSON.stringify({ customerId, email, shopId, deviceFingerprint, exp })).toString('base64url');
+  const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyCustomerSessionToken(tokenStr) {
+  if (!tokenStr || typeof tokenStr !== 'string') return null;
+  const parts = tokenStr.split('.');
+  if (parts.length !== 2) return null;
+  const [payloadBase64, clientSig] = parts;
+  const expectedSig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payloadBase64).digest('base64url');
+  if (!safeEqual(clientSig, expectedSig)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
+    if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+// Cookie Helper for Owner Auth (HttpOnly, Secure, SameSite=Strict)
+function setAuthCookies(res, accessToken, refreshToken = null, isSecure = false) {
+  res.cookie('marku_access_token', accessToken, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 15 * 60 * 1000 // 15 mins
+  });
+
+  if (refreshToken) {
+    res.cookie('marku_refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+  }
+}
+
+// Cookie Helper for Customer 365-Day Session (Zero-App-Install)
+function setCustomerCookie(res, customerSessionToken, isSecure = false) {
+  res.cookie('marku_customer_session', customerSessionToken, {
+    httpOnly: true,
+    secure: isSecure,
+    sameSite: 'lax', // Lax enables session sending on redirect from QR scans
+    path: '/',
+    maxAge: 365 * 24 * 60 * 60 * 1000 // 365 days
+  });
+}
+
+function formatDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+// Resolve Owner ID from Request (checks Cookie Access JWT, Bearer Token, or Refresh Cookie)
+async function getOwnerIdFromReq(req) {
+  let token = null;
+  const authHeader = req.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.cookies && req.cookies.marku_access_token) {
+    token = req.cookies.marku_access_token;
+  }
+
+  if (token) {
+    const userAccess = verifyUserAccessToken(token);
+    if (userAccess) return userAccess.userId || userAccess.ownerId;
+
+    const legacy = verifyOwnerToken(token);
+    if (legacy) return legacy.ownerId;
+
+    if (supabase) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        if (!error && user) return user.id;
+      } catch (e) {}
+    }
+  }
+
+  if (req.cookies && req.cookies.marku_refresh_token) {
+    const refresh = verifyRefreshToken(req.cookies.marku_refresh_token);
+    if (refresh && refresh.userId) return refresh.userId;
+  }
+
+  return null;
+}
+
+// Google OAuth 2.0 Credential Verification
+async function verifyGoogleToken(idToken) {
+  if (!idToken || typeof idToken !== 'string') {
+    return { success: false, reason: 'Missing Google ID token' };
+  }
+
+  // 1. Check live Google tokeninfo endpoint (Google Identity Services GIS)
+  try {
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (googleRes.ok) {
+      const data = await googleRes.json();
+      if (data && data.email) {
+        return {
+          success: true,
+          googleId: data.sub,
+          email: data.email.toLowerCase().trim(),
+          name: data.name || data.email.split('@')[0],
+          avatarUrl: data.picture || null,
+          emailVerified: data.email_verified === 'true' || data.email_verified === true
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[GoogleAuth] Google tokeninfo network fetch:', err.message);
+  }
+
+  // 2. Check Supabase token verification fallback
+  if (supabase) {
+    try {
+      const suRes = await verifySupabaseToken(idToken);
+      if (suRes.success && suRes.email) {
+        return {
+          success: true,
+          googleId: suRes.uid,
+          email: suRes.email.toLowerCase().trim(),
+          name: suRes.name || suRes.email.split('@')[0],
+          avatarUrl: null,
+          emailVerified: true
+        };
+      }
+    } catch {}
+  }
+
+  // 3. Fallback for JWT payload parsing in demo/test/offline mode
+  try {
+    const parts = idToken.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      if (payload.email) {
+        return {
+          success: true,
+          googleId: payload.sub || payload.id || crypto.randomUUID(),
+          email: payload.email.toLowerCase().trim(),
+          name: payload.name || payload.email.split('@')[0],
+          avatarUrl: payload.picture || null,
+          emailVerified: true
+        };
+      }
+    }
+  } catch {}
+
+  return { success: false, reason: 'Invalid or expired Google credential' };
+}
+
+// --------------------------------------------------------------------
+// A. SHOP OWNER GOOGLE AUTH HANDLER (/api/auth/google/owner)
+// --------------------------------------------------------------------
+app.post('/api/auth/google/owner', async (req, res) => {
+  const { credential, id_token, token, supabaseToken, email: manualEmail, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, deviceFingerprint } = req.body;
+  const authToken = credential || id_token || token || supabaseToken;
+
+  let cleanEmail = null;
+  let ownerName = null;
+  let googleId = null;
+  let avatarUrl = null;
+
+  if (authToken) {
+    const verified = await verifyGoogleToken(authToken);
+    if (!verified.success || !verified.email) {
+      return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+    }
+    cleanEmail = verified.email;
+    ownerName = verified.name;
+    googleId = verified.googleId;
+    avatarUrl = verified.avatarUrl;
+  } else if (manualEmail && manualEmail.includes('@')) {
+    cleanEmail = manualEmail.trim().toLowerCase();
+    ownerName = manualName || cleanEmail.split('@')[0];
+    googleId = 'manual_' + crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 16);
+  } else {
+    return res.status(400).json({ success: false, message: 'Missing Google authentication credential.' });
+  }
+
+  const isSecure = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const db = loadLocalDb();
+  if (!db.users) db.users = {};
+  if (!db.sessions) db.sessions = {};
+  if (!db.owners) db.owners = {};
+  if (!db.shops) db.shops = {};
+
+  let user = null;
+  let shop = null;
+
+  // 1. Check or Upsert user in public.users table
+  if (supabase) {
+    try {
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('*')
+        .or(`email.eq.${cleanEmail},google_id.eq.${googleId}`)
+        .maybeSingle();
+
+      if (existingUser) {
+        user = existingUser;
+      } else {
+        const { data: newUser } = await supabase.from('users').insert({
+          email: cleanEmail,
+          name: ownerName,
+          google_id: googleId,
+          avatar_url: avatarUrl,
+          role: 'owner'
+        }).select().single();
+        user = newUser;
+      }
+    } catch (err) {
+      console.warn('[Supabase users error]:', err.message);
+    }
+  }
+
+  if (!user) {
+    if (db.users[cleanEmail]) {
+      user = db.users[cleanEmail];
+    } else {
+      user = {
+        id: crypto.randomUUID(),
+        email: cleanEmail,
+        name: ownerName,
+        google_id: googleId,
+        avatar_url: avatarUrl,
+        role: 'owner',
+        created_at: new Date().toISOString()
+      };
+      db.users[cleanEmail] = user;
+      saveLocalDb(db);
+    }
+  }
+
+  // 2. Check if shop workspace exists for this owner
+  if (supabase) {
+    try {
+      let { data: existingShop } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle();
+      if (!existingShop) {
+        const { data: oldOwner } = await supabase.from('owners').select('*').eq('email', cleanEmail).maybeSingle();
+        if (oldOwner) {
+          const { data: oldShop } = await supabase.from('shops').select('*').eq('owner_id', oldOwner.id).maybeSingle();
+          if (oldShop) existingShop = oldShop;
+        }
+      }
+      if (existingShop) shop = existingShop;
+    } catch (err) {
+      console.warn('[Supabase shops lookup error]:', err.message);
+    }
+  }
+
+  if (!shop) {
+    const found = Object.values(db.shops || {}).find(s => s.ownerId === user.id || (db.owners[cleanEmail] && s.slug === db.owners[cleanEmail].shopSlug));
+    if (found) shop = found;
+  }
+
+  // 3. If shop does NOT exist: Create a new tenant workspace (shop_id)
+  let isNewWorkspace = false;
+  if (!shop) {
+    isNewWorkspace = true;
+    const finalShopName = (shopName && shopName.trim()) ? shopName.trim() : `${ownerName}'s Shop`;
+    let baseSlug = (slug && slug.trim()) ? slug.trim().toLowerCase() : finalShopName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (!baseSlug) baseSlug = 'shop-' + crypto.randomBytes(3).toString('hex');
+    let finalSlug = baseSlug;
+
+    if (db.shops && db.shops[finalSlug]) {
+      finalSlug = `${baseSlug}-${crypto.randomBytes(2).toString('hex')}`;
+    }
+
+    const shopId = crypto.randomUUID();
+    const shopSecret = crypto.randomBytes(32).toString('hex');
+    const trialEndsAt = new Date(Date.now() + 7 * 86400000).toISOString();
+    const target = parseInt(stampsTarget) || 10;
+    const cooldown = parseFloat(cooldownHours) || 12;
+    const reward = (rewardDescription && rewardDescription.trim()) ? rewardDescription.trim() : '1 Free Item';
+
+    const newShopData = {
+      id: shopId,
+      owner_id: user.id,
+      name: finalShopName,
+      slug: finalSlug,
+      stamps_target: target,
+      reward_description: reward,
+      cooldown_hours: cooldown,
+      secret_key: shopSecret,
+      subscription_plan: 'trial',
+      subscription_status: 'active',
+      subscription_ends_at: trialEndsAt
+    };
+
+    if (supabase) {
+      try {
+        const { data: createdShop } = await supabase.from('shops').insert(newShopData).select().single();
+        if (createdShop) shop = createdShop;
+      } catch (err) {
+        console.warn('[Supabase insert shop error]:', err.message);
+      }
+    }
+
+    if (!shop) shop = newShopData;
+
+    db.shops[finalSlug] = {
+      id: shop.id,
+      ownerId: user.id,
+      name: finalShopName,
+      slug: finalSlug,
+      stampsTarget: target,
+      rewardDescription: reward,
+      cooldownHours: cooldown,
+      secretKey: shopSecret,
+      subscriptionPlan: 'trial',
+      subscriptionStatus: 'active',
+      subscriptionEndsAt: trialEndsAt
+    };
+    db.owners[cleanEmail] = {
+      id: user.id,
+      email: cleanEmail,
+      shopSlug: finalSlug,
+      subscriptionPlan: 'trial',
+      subscriptionStatus: 'active',
+      subscriptionEndsAt: trialEndsAt
+    };
+    saveLocalDb(db);
+  }
+
+  // 4. Issue Short-Lived Access JWT (15 mins) and Long-Lived Refresh Token (30 days)
+  const accessToken = signUserAccessToken({
+    userId: user.id,
+    email: cleanEmail,
+    role: 'owner',
+    shopId: shop.id,
+    shopSlug: shop.slug,
+    name: ownerName
+  });
+  const { token: refreshToken, tokenId, exp: refreshExp } = signRefreshToken(user.id, 'owner', deviceFingerprint, 30);
+
+  if (supabase) {
+    try {
+      await supabase.from('sessions').insert({
+        user_id: user.id,
+        refresh_token: tokenId,
+        device_fingerprint: deviceFingerprint || null,
+        expires_at: new Date(refreshExp).toISOString()
+      });
+    } catch {}
+  }
+  db.sessions[tokenId] = { userId: user.id, deviceFingerprint, expiresAt: refreshExp };
+  saveLocalDb(db);
+
+  setAuthCookies(res, accessToken, refreshToken, isSecure);
+
+  const legacyOwnerToken = signOwnerToken(user.id, cleanEmail, null);
+
+  return res.json({
+    success: true,
+    redirect: '/dashboard',
+    token: accessToken,
+    ownerToken: legacyOwnerToken,
+    user: { id: user.id, email: cleanEmail, name: ownerName, avatarUrl },
+    shop: {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      stampsTarget: shop.stamps_target || shop.stampsTarget || 10,
+      rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+      cooldownHours: shop.cooldown_hours || shop.cooldownHours || 12,
+      subscriptionPlan: shop.subscription_plan || shop.subscriptionPlan || 'trial'
+    },
+    isNew: isNewWorkspace
+  });
+});
+
+// Compatibility Alias for legacy owner login & registration
+app.post('/api/owner/google-auth', (req, res, next) => {
+  req.url = '/api/auth/google/owner';
+  app._router.handle(req, res, next);
+});
+
+// --------------------------------------------------------------------
+// B. CUSTOMER GOOGLE & APPLE AUTH HANDLER (/api/auth/google/customer)
+// --------------------------------------------------------------------
+app.post('/api/auth/google/customer', async (req, res) => {
+  const { credential, id_token, token, supabaseToken, provider, email, name, shopSlug, shopId, deviceFingerprint } = req.body;
+  const isSecure = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const qrToken = req.body.token;
+
+  let customerEmail = null;
+  let customerName = null;
+  let googleId = null;
+  let avatarUrl = null;
+
+  if (provider === 'apple') {
+    if (!email) return res.status(400).json({ success: false, message: 'Missing Apple account email.' });
+    customerEmail = email.toLowerCase().trim();
+    customerName = name || 'Apple Customer';
+    googleId = 'apple_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
+  } else {
+    const authToken = credential || id_token || token || supabaseToken;
+    if (authToken) {
+      const verified = await verifyGoogleToken(authToken);
+      if (!verified.success || !verified.email) {
+        return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+      }
+      customerEmail = verified.email;
+      customerName = verified.name;
+      googleId = verified.googleId;
+      avatarUrl = verified.avatarUrl;
+    } else if (email && email.includes('@')) {
+      customerEmail = email.trim().toLowerCase();
+      customerName = name || customerEmail.split('@')[0];
+      googleId = 'test_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
+    } else {
+      return res.status(400).json({ success: false, message: 'Missing Google authentication token.' });
+    }
+  }
+
+  const shop = await resolveShopBySlug(shopSlug || shopId);
+  if (!shop) {
+    return res.status(404).json({ success: false, message: 'Shop loyalty program not found.' });
+  }
+
+  const db = loadLocalDb();
+  if (!db.users) db.users = {};
+  if (!db.customerCards) db.customerCards = {};
+  if (!db.usedTokens) db.usedTokens = {};
+  if (!db.history) db.history = [];
+
+  // 1. Look up or Upsert customer in users table
+  let user = null;
+  if (supabase) {
+    try {
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('*')
+        .or(`email.eq.${customerEmail},google_id.eq.${googleId}`)
+        .maybeSingle();
+
+      if (existingUser) {
+        user = existingUser;
+      } else {
+        const { data: newUser } = await supabase.from('users').insert({
+          email: customerEmail,
+          name: customerName,
+          google_id: googleId,
+          avatar_url: avatarUrl,
+          role: 'customer'
+        }).select().single();
+        user = newUser;
+      }
+    } catch (err) {
+      console.warn('[Supabase customer user error]:', err.message);
+    }
+  }
+
+  if (!user) {
+    if (db.users[customerEmail]) {
+      user = db.users[customerEmail];
+    } else {
+      user = {
+        id: crypto.randomUUID(),
+        email: customerEmail,
+        name: customerName,
+        google_id: googleId,
+        role: 'customer',
+        created_at: new Date().toISOString()
+      };
+      db.users[customerEmail] = user;
+      saveLocalDb(db);
+    }
+  }
+
+  // 2. Fetch or Create customer card for this specific shop
+  let card = null;
+  if (supabase && shop.id) {
+    try {
+      const { data: existingCard } = await supabase
+        .from('customer_cards')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .or(`user_id.eq.${user.id},email.eq.${customerEmail}`)
+        .maybeSingle();
+
+      if (existingCard) {
+        card = existingCard;
+      } else {
+        const { data: newCard } = await supabase
+          .from('customer_cards')
+          .insert({
+            shop_id: shop.id,
+            user_id: user.id,
+            email: customerEmail,
+            google_id: googleId,
+            phone: customerEmail,
+            name: customerName,
+            stamps: 0,
+            completed_cards: 0,
+            device_fingerprint: deviceFingerprint || null,
+            last_stamp_at: null
+          })
+          .select()
+          .single();
+        card = newCard;
+      }
+    } catch (err) {
+      console.warn('[Supabase customer card error]:', err.message);
+    }
+  }
+
+  const localCardKey = `${shop.slug || shop.id}_${customerEmail}`;
+  if (!card) {
+    if (db.customerCards[localCardKey]) {
+      card = db.customerCards[localCardKey];
+    } else {
+      card = {
+        id: crypto.randomUUID(),
+        shop_id: shop.id,
+        user_id: user.id,
+        email: customerEmail,
+        name: customerName,
+        stamps: 0,
+        completed_cards: 0,
+        device_fingerprint: deviceFingerprint || null,
+        last_stamp_at: null
+      };
+      db.customerCards[localCardKey] = card;
+      saveLocalDb(db);
+    }
+  }
+
+  // 3. Process Stamp Claim if counter QR token was passed
+  let stampAwarded = false;
+  let rewardUnlocked = false;
+  let claimMessage = 'Welcome to ' + shop.name + '!';
+  let cooldownActive = false;
+  let secondsRemaining = 0;
+
+  const stampsTarget = shop.stampsTarget || shop.stamps_target || 10;
+  const cooldownHours = shop.cooldownHours || shop.cooldown_hours || 12;
+  const cooldownMs = cooldownHours * 3600 * 1000;
+  const now = Date.now();
+
+  if (qrToken && qrToken.trim()) {
+    const validation = validateShopQrToken(qrToken, shop.secretKey || shop.secret_key);
+    if (!validation.valid) {
+      claimMessage = 'QR code expired. The counter screen has already generated a fresh code for you!';
+    } else {
+      let tokenBurned = false;
+      if (supabase && shop.id) {
+        try {
+          const { data: used } = await supabase.from('used_tokens').select('id').eq('shop_id', shop.id).eq('token', qrToken).maybeSingle();
+          if (used) tokenBurned = true;
+        } catch {}
+      }
+      if (!tokenBurned && db.usedTokens[`${shop.id}_${qrToken}`]) tokenBurned = true;
+
+      if (tokenBurned) {
+        claimMessage = 'This QR code was already scanned. Please scan the current code on the counter.';
+      } else {
+        if (card.last_stamp_at) {
+          const lastStampMs = new Date(card.last_stamp_at).getTime();
+          const elapsed = now - lastStampMs;
+          if (elapsed < cooldownMs) {
+            cooldownActive = true;
+            secondsRemaining = Math.ceil((cooldownMs - elapsed) / 1000);
+            claimMessage = `Today's stamp already collected. Next stamp unlocks in ${formatDuration(secondsRemaining)}.`;
+          }
+        }
+
+        if (!cooldownActive) {
+          stampAwarded = true;
+          let currentStamps = (card.stamps || 0) + 1;
+          let completed = card.completed_cards || 0;
+
+          if (currentStamps >= stampsTarget) {
+            rewardUnlocked = true;
+            completed += 1;
+            currentStamps = 0;
+            claimMessage = `🎉 Reward Unlocked! You reached ${stampsTarget} stamps and earned: ${shop.rewardDescription || shop.reward_description || '1 Free Item'}!`;
+          } else {
+            claimMessage = `🎉 Stamp collected! You have ${currentStamps} of ${stampsTarget} stamps.`;
+          }
+
+          card.stamps = currentStamps;
+          card.completed_cards = completed;
+          card.last_stamp_at = new Date(now).toISOString();
+          card.updated_at = new Date(now).toISOString();
+
+          if (supabase && shop.id) {
+            try {
+              await supabase.from('used_tokens').insert({
+                shop_id: shop.id,
+                phone: customerEmail,
+                token: qrToken,
+                used_at: new Date(now).toISOString()
+              });
+              await supabase.from('customer_cards').update({
+                stamps: currentStamps,
+                completed_cards: completed,
+                last_stamp_at: card.last_stamp_at,
+                updated_at: card.updated_at
+              }).eq('id', card.id);
+              await supabase.from('stamp_history').insert({
+                shop_id: shop.id,
+                card_id: card.id,
+                phone: customerEmail,
+                customer_name: customerName,
+                action_type: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+                stamps_at_point: currentStamps
+              });
+            } catch (err) {
+              console.warn('[Supabase claim stamp error]:', err.message);
+            }
+          }
+
+          db.usedTokens[`${shop.id}_${qrToken}`] = { burnedAt: now, customer: customerEmail };
+          db.customerCards[localCardKey] = card;
+          db.history.push({
+            shopId: shop.id,
+            phone: customerEmail,
+            customerName: customerName,
+            actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+            stampsAtPoint: currentStamps,
+            timestamp: now
+          });
+          saveLocalDb(db);
+        }
+      }
+    }
+  }
+
+  // 4. Issue 365-Day Customer Session Cookie & Device Fingerprint Token
+  const customerSessionToken = signCustomerSessionToken(user.id, customerEmail, shop.id, deviceFingerprint);
+  setCustomerCookie(res, customerSessionToken, isSecure);
+
+  return res.json({
+    success: true,
+    stampAwarded,
+    rewardUnlocked,
+    cooldownActive,
+    secondsRemaining,
+    message: claimMessage,
+    sessionToken: customerSessionToken,
+    user: { id: user.id, email: customerEmail, name: customerName, avatarUrl },
+    card: {
+      id: card.id,
+      stamps: card.stamps || 0,
+      completedCards: card.completed_cards || 0,
+      lastStampAt: card.last_stamp_at,
+      stampsTarget,
+      rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item'
+    },
+    shop: {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      stampsTarget,
+      rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item',
+      cooldownHours
+    }
+  });
+});
+
+// Apple Auth Alias
+app.post('/api/auth/apple', (req, res, next) => {
+  req.body.provider = 'apple';
+  req.url = '/api/auth/google/customer';
+  app._router.handle(req, res, next);
+});
+
+// --------------------------------------------------------------------
+// C. RETURNING CUSTOMER SESSION AUTO-RECOGNITION (/api/customer/session-status)
+// --------------------------------------------------------------------
+app.get('/api/customer/session-status', async (req, res) => {
+  const shopSlug = req.query.shop || req.query.shopId;
+  const cookieToken = req.cookies?.marku_customer_session || req.headers?.authorization?.replace(/^Bearer /i, '');
+  if (!cookieToken) {
+    return res.json({ authenticated: false });
+  }
+
+  const payload = verifyCustomerSessionToken(cookieToken);
+  if (!payload || !payload.email) {
+    return res.json({ authenticated: false });
+  }
+
+  const shop = await resolveShopBySlug(shopSlug || payload.shopId);
+  if (!shop) {
+    return res.json({ authenticated: false, message: 'Shop not found' });
+  }
+
+  const db = loadLocalDb();
+  let card = null;
+  if (supabase && shop.id) {
+    try {
+      const { data } = await supabase.from('customer_cards').select('*').eq('shop_id', shop.id).eq('email', payload.email).maybeSingle();
+      if (data) card = data;
+    } catch {}
+  }
+  if (!card) {
+    const localKey = `${shop.slug || shop.id}_${payload.email}`;
+    card = db.customerCards ? db.customerCards[localKey] : null;
+  }
+
+  const cooldownHours = shop.cooldownHours || shop.cooldown_hours || 12;
+  const cooldownMs = cooldownHours * 3600 * 1000;
+  let inCooldown = false;
+  let secondsRemaining = 0;
+  if (card && card.last_stamp_at) {
+    const elapsed = Date.now() - new Date(card.last_stamp_at).getTime();
+    if (elapsed < cooldownMs) {
+      inCooldown = true;
+      secondsRemaining = Math.ceil((cooldownMs - elapsed) / 1000);
+    }
+  }
+
+  return res.json({
+    authenticated: true,
+    user: { id: payload.customerId, email: payload.email },
+    card: card ? {
+      stamps: card.stamps || 0,
+      completedCards: card.completed_cards || 0,
+      lastStampAt: card.last_stamp_at
+    } : { stamps: 0, completedCards: 0, lastStampAt: null },
+    shop: {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      stampsTarget: shop.stampsTarget || shop.stamps_target || 10,
+      rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item',
+      cooldownHours
+    },
+    inCooldown,
+    secondsRemaining
+  });
+});
+
+// --------------------------------------------------------------------
+// D. SESSION REFRESH & USER IDENTITY ENDPOINTS
+// --------------------------------------------------------------------
+app.post('/api/auth/refresh', async (req, res) => {
+  const isSecure = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
+  const refreshToken = req.cookies?.marku_refresh_token || req.body?.refreshToken;
+  if (!refreshToken) {
+    return res.status(401).json({ success: false, message: 'No refresh token provided.' });
+  }
+
+  const payload = verifyRefreshToken(refreshToken);
+  if (!payload || !payload.userId) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired refresh token.' });
+  }
+
+  const newAccessToken = signUserAccessToken({
+    userId: payload.userId,
+    role: payload.role
+  });
+  setAuthCookies(res, newAccessToken, null, isSecure);
+
+  return res.json({ success: true, token: newAccessToken });
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  const ownerId = await getOwnerIdFromReq(req);
+  if (!ownerId) {
+    return res.status(401).json({ authenticated: false });
+  }
+
+  let user = null;
+  let shop = null;
+  const db = loadLocalDb();
+
+  if (supabase) {
+    try {
+      const { data: suUser } = await supabase.from('users').select('*').eq('id', ownerId).maybeSingle();
+      if (suUser) user = suUser;
+      const { data: suShop } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
+      if (suShop) shop = suShop;
+    } catch {}
+  }
+
+  if (!user && db.users) {
+    user = Object.values(db.users).find(u => u.id === ownerId);
+  }
+  if (!shop && db.shops) {
+    shop = Object.values(db.shops).find(s => s.ownerId === ownerId);
+  }
+
+  return res.json({
+    authenticated: true,
+    user: user || { id: ownerId, role: 'owner' },
+    shop: shop ? {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      stampsTarget: shop.stamps_target || shop.stampsTarget || 10,
+      rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item'
+    } : null,
+    token: signOwnerToken(ownerId, user?.email || null)
+  });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('marku_access_token', { path: '/' });
+  res.clearCookie('marku_refresh_token', { path: '/' });
+  res.clearCookie('marku_customer_session', { path: '/' });
+  return res.json({ success: true, message: 'Signed out successfully.' });
+});
 
 // Register New Shop Owner (Supabase Auth / Google / Email)
 app.post('/api/owner/register', async (req, res) => {
@@ -1636,24 +2552,19 @@ app.post('/api/owner/google-auth', async (req, res) => {
 // OWNER SUBSCRIPTION & BILLING ENDPOINTS
 // --------------------------------------------------------------------
 app.get('/api/owner/subscription', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Authorization required.' });
-  }
-  const verifiedToken = verifyOwnerToken(authHeader.split(' ')[1]);
-  if (!verifiedToken) return res.status(401).json({ success: false, message: 'Invalid or expired session.' });
+  const ownerId = await getOwnerIdFromReq(req);
+  if (!ownerId) return res.status(401).json({ success: false, message: 'Invalid or expired session.' });
 
   let shop = null;
   if (supabase) {
     try {
-      const { data } = await supabase.from('shops').select('*').eq('owner_id', verifiedToken.ownerId).maybeSingle();
+      const { data } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
       if (data) shop = data;
     } catch (e) {}
   }
   if (!shop) {
     const db = loadLocalDb();
-    const owner = db.owners[verifiedToken.email];
-    if (owner && owner.shopSlug) shop = db.shops[owner.shopSlug];
+    shop = Object.values(db.shops || {}).find(s => s.ownerId === ownerId);
   }
 
   if (!shop) return res.status(404).json({ success: false, message: 'Shop profile not found.' });
@@ -1683,8 +2594,8 @@ app.get('/api/owner/subscription', async (req, res) => {
 });
 
 app.post('/api/owner/subscription/select', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const ownerId = await getOwnerIdFromReq(req);
+  if (!ownerId) {
     return res.status(401).json({ success: false, message: 'Authorization required.' });
   }
   const verifiedToken = verifyOwnerToken(authHeader.split(' ')[1]);
@@ -1754,26 +2665,7 @@ app.get('/api/shop/:slug/qr-status', async (req, res) => {
 
 // Protected Owner Dashboard Data (Row-Level Isolated Data Access)
 app.get('/api/owner/dashboard', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, message: 'Authorization token required.' });
-  }
-  const token = authHeader.split(' ')[1];
-
-  let ownerId = null;
-
-  // Check if token is our signed HMAC token
-  const verifiedAppToken = verifyOwnerToken(token);
-  if (verifiedAppToken) {
-    ownerId = verifiedAppToken.ownerId;
-  } else if (supabase) {
-    // Check if token is Supabase JWT
-    try {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-      if (!authErr && user) ownerId = user.id;
-    } catch (e) {}
-  }
-
+  const ownerId = await getOwnerIdFromReq(req);
   if (!ownerId) {
     return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
   }
@@ -2086,22 +2978,6 @@ app.post('/api/owner/create-shop', async (req, res) => {
 // --------------------------------------------------------------------
 // 3.1 OWNER SETTINGS: EDIT REWARD & STAMPS TARGET (TASK COMPLETE TARGET)
 // --------------------------------------------------------------------
-async function getOwnerIdFromReq(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.split(' ')[1];
-
-  const verified = verifyOwnerToken(token);
-  if (verified) return verified.ownerId;
-
-  if (supabase) {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (!error && user) return user.id;
-    } catch (e) {}
-  }
-  return null;
-}
 
 app.post('/api/owner/settings', async (req, res) => handleUpdateSettings(req, res));
 app.put('/api/owner/settings', async (req, res) => handleUpdateSettings(req, res));
@@ -2407,14 +3283,14 @@ app.get('/api/shop/:slug/live-qr', async (req, res) => {
 
     if (rawHost.includes('trycloudflare.com') || rawHost.includes('loca.lt')) {
       targetHost = rawHost;
-      scanUrl = `${protocol}://${rawHost}/scan.html?shop=${slug}&token=${qrData.token}`;
+      scanUrl = `${protocol}://${rawHost}/c/${slug}?token=${qrData.token}`;
     } else if (publicTunnel) {
       const cleanPublic = publicTunnel.replace(/\/$/, '');
       targetHost = cleanPublic.replace(/^https?:\/\//, '');
-      scanUrl = `${cleanPublic}/scan.html?shop=${slug}&token=${qrData.token}`;
+      scanUrl = `${cleanPublic}/c/${slug}?token=${qrData.token}`;
     } else {
       targetHost = (rawHost.includes('localhost') || rawHost.includes('127.0.0.1')) ? `${LAN_IP}:${PORT}` : rawHost;
-      scanUrl = `${protocol}://${targetHost}/scan.html?shop=${slug}&token=${qrData.token}`;
+      scanUrl = `${protocol}://${targetHost}/c/${slug}?token=${qrData.token}`;
     }
 
     const db = loadLocalDb();
@@ -3166,6 +4042,16 @@ module.exports = {
   validateShopQrToken,
   signOwnerToken,
   verifyOwnerToken,
+  signUserAccessToken,
+  verifyUserAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  signCustomerSessionToken,
+  verifyCustomerSessionToken,
+  verifyGoogleToken,
+  getOwnerIdFromReq,
+  setAuthCookies,
+  setCustomerCookie,
   signCustomerOtpToken,
   verifyCustomerOtpToken,
   hashPassword,

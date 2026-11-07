@@ -25,6 +25,8 @@
 
   <!-- Supabase JS SDK for Google OAuth (Free) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Google Identity Services (GIS) SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <style>
     body { 
@@ -179,61 +181,47 @@
           <span>Pass Authentication</span>
         </div>
         <h2 id="promptShopTitle" class="text-xl font-extrabold text-white">View Your Loyalty Pass</h2>
-        <p class="text-xs text-zinc-400 mt-1">Enter your email or mobile number to view your rewards pass.</p>
+        <p class="text-xs text-zinc-400 mt-1">Sign in with Google to view your live stamp progress and rewards.</p>
       </div>
 
-      <!-- 2. Direct Mobile / Email Lookup & OTP Form -->
-      <form id="cardEmailForm" onsubmit="handleRequestCardOtp(event)" class="space-y-3.5 pt-1">
-        <div>
-          <label for="cardDirectEmail" class="block text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">Mobile Number</label>
-          <div class="relative">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-mono text-xs">📱</span>
-            <input type="text" id="cardDirectEmail" required placeholder="9876543210 or email"
-              class="w-full bg-[#17171c] border border-gray-800 focus:border-emerald-500 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-mono">
-          </div>
+      <!-- Google & Apple OAuth Buttons -->
+      <div class="space-y-3 pt-1">
+        <!-- GIS Container -->
+        <div id="cardGsiWrapper" class="hidden w-full flex justify-center mb-1">
+          <div id="cardGsiContainer"></div>
         </div>
 
-        <button type="submit" id="cardDirectEmailBtn"
-          class="w-full bg-[#e5a83b] hover:bg-[#d4972a] text-black font-bold py-3 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
-          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-          <span id="cardBtnText">Send OTP to Mobile &rarr;</span>
+        <!-- Prominent Google Button -->
+        <button type="button" id="cardGoogleBtn" onclick="triggerCardGoogleSignIn()"
+          class="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3.5 px-4 rounded-xl text-sm flex items-center justify-center gap-3 shadow-md transition-all">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span id="cardGoogleBtnText">Continue with Google</span>
         </button>
 
-        <div class="text-center pt-0.5">
-          <button type="button" onclick="handleDirectOpenPass()" class="text-[11px] text-gray-500 hover:text-gray-300 underline">
-            Quick 1-tap view without OTP &rarr;
-          </button>
-        </div>
-      </form>
-
-      <!-- STEP 2: Card OTP Verification Section -->
-      <div id="cardOtpSection" class="hidden space-y-4 pt-2 border-t border-gray-800">
-        <div class="text-center space-y-1">
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-            <span>✓ SMS OTP Dispatched</span>
-          </div>
-          <p id="cardOtpPromptText" class="text-xs text-gray-300">Enter your 6-digit code sent to your mobile phone.</p>
-        </div>
-
-        <div class="space-y-1.5">
-          <label for="cardOtpCodeInput" class="block text-xs font-bold text-gray-300 uppercase tracking-wider text-center">6-Digit Verification Code</label>
-          <input type="text" id="cardOtpCodeInput" maxlength="6" placeholder="• • • • • •"
-            class="w-full bg-[#17171c] border border-emerald-500/50 rounded-xl px-3.5 py-3 text-center text-xl font-mono tracking-widest text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-        </div>
-
-        <button type="button" onclick="handleVerifyCardOtp()" id="cardVerifyOtpBtn"
-          class="w-full btn-gold font-bold py-3 rounded-xl text-sm transition-all shadow-md">
-          Verify OTP & Open Pass &rarr;
+        <!-- Apple Button -->
+        <button type="button" onclick="handleCardAppleSignIn()"
+          class="w-full bg-[#121216] hover:bg-[#1a1a20] border border-gray-700 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2.5 transition-all">
+          <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.85.94-2.93-.91.04-2.03.61-2.69 1.39-.58.67-1.09 1.76-.95 2.81 1.02.08 2.06-.51 2.7-1.27z"/>
+          </svg>
+          <span>Continue with Apple</span>
         </button>
+      </div>
 
-        <div class="flex items-center justify-between text-[11px] text-gray-400 pt-1">
-          <button type="button" onclick="handleRequestCardOtp()" class="hover:text-amber-400 underline">Resend OTP</button>
-          <button type="button" onclick="cancelCardOtpStep()" class="hover:text-gray-200">Change Mobile / Email</button>
-        </div>
+      <!-- Direct Email Prompt Fallback -->
+      <div class="pt-1 text-center">
+        <button type="button" onclick="handleCardDirectEmailPrompt()" class="text-xs text-gray-500 hover:text-gray-300 underline">
+          View pass with email address &rarr;
+        </button>
       </div>
 
       <!-- Direct Camera Scan Option from Auth Screen -->
-      <div class="pt-2 border-t border-white/10">
+      <div class="pt-3 border-t border-white/10">
         <button type="button" onclick="openQrScanner()"
           class="w-full flex items-center justify-center gap-2 bg-[#1a1a1e] hover:bg-[#222227] border border-[#2e2e36] text-zinc-200 font-semibold py-2.5 px-3 rounded-xl text-xs transition-all">
           <svg class="w-4 h-4 text-[#d99b3b]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -281,35 +269,45 @@
       }
     }
 
-    async function initCardSession() {
-      const token = localStorage.getItem('loyalty_token');
-      const email = localStorage.getItem('loyalty_email');
-      const phone = localStorage.getItem('loyalty_phone');
-      const identifier = email || phone;
+    let cardGoogleClientId = null;
 
-      if (token && identifier) {
-        // Validate session with server
+    async function initCardSession() {
+      // 1. Fetch Google auth configuration
+      try {
+        const confRes = await fetch('/api/config/auth');
+        const conf = await confRes.json();
+        if (conf.googleClientId) {
+          cardGoogleClientId = conf.googleClientId;
+          initCardGoogleClient(conf.googleClientId);
+        }
+      } catch {}
+
+      // 2. Check 365-Day Cookie & Session Status
+      try {
+        const statusRes = await fetch(`/api/customer/session-status?shop=${encodeURIComponent(shopSlug)}`, {
+          credentials: 'include'
+        });
+        const statusData = await statusRes.json();
+        if (statusData.success && statusData.authenticated && statusData.card) {
+          document.getElementById('authPromptBox').classList.add('hidden');
+          renderCard(statusData.card, statusData.shop);
+          return;
+        }
+      } catch (err) {
+        console.warn('Session check error:', err.message);
+      }
+
+      // 3. Check legacy loyalty_token fallback
+      const token = localStorage.getItem('loyalty_token') || localStorage.getItem('customer_session');
+      const email = localStorage.getItem('loyalty_email') || localStorage.getItem('loyalty_phone');
+      if (token && email) {
         try {
-          const check = await fetch('/api/customer/verify-session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-          });
-          const checkData = await check.json();
-          if (checkData.success && checkData.valid) {
-            await loadCard(shopSlug, identifier, token);
-            return;
-          }
+          await loadCard(shopSlug, email, token);
+          return;
         } catch (e) {}
       }
 
-      // Pre-fill input if known from previous visit
-      if (identifier) {
-        const inputEl = document.getElementById('cardDirectEmail');
-        if (inputEl) inputEl.value = identifier;
-      }
-
-      // No active session: show Direct Email/Mobile auth box
+      // 4. Show Google Sign In Gate
       showAuthPromptBox();
     }
 
@@ -318,147 +316,95 @@
       document.getElementById('authPromptBox').classList.remove('hidden');
     }
 
-    let currentCardOtpTarget = '';
+    function initCardGoogleClient(clientId) {
+      if (!window.google || !window.google.accounts) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleCardGoogleResponse,
+          auto_select: true
+        });
 
-    // 1. Request OTP for Card (WhatsApp + Supabase Email)
-    async function handleRequestCardOtp(e) {
-      if (e) e.preventDefault();
-      const input = document.getElementById('cardDirectEmail').value.trim();
-      if (!input) {
-        showNotice('Please enter your mobile number or email.', false);
+        const wrapper = document.getElementById('cardGsiWrapper');
+        const container = document.getElementById('cardGsiContainer');
+        if (wrapper && container) {
+          window.google.accounts.id.renderButton(container, {
+            theme: 'filled_black',
+            size: 'large',
+            shape: 'pill',
+            width: 300,
+            text: 'continue_with'
+          });
+          wrapper.classList.remove('hidden');
+        }
+
+        window.google.accounts.id.prompt();
+      } catch (err) {
+        console.warn('Card GIS notice:', err.message);
+      }
+    }
+
+    function triggerCardGoogleSignIn() {
+      if (window.google && window.google.accounts && cardGoogleClientId) {
+        window.google.accounts.id.prompt();
+      } else {
+        handleCardDirectEmailPrompt();
+      }
+    }
+
+    async function handleCardGoogleResponse(response) {
+      if (!response || !response.credential) {
+        showNotice('No Google credential returned. Please try again.', false);
         return;
       }
+      await submitCardAuth({ credential: response.credential });
+    }
 
-      currentCardOtpTarget = input;
-      const btn = document.getElementById('cardDirectEmailBtn');
-      const btnText = document.getElementById('cardBtnText');
-      btn.disabled = true;
-      btnText.textContent = 'Generating OTP...';
+    async function handleCardAppleSignIn() {
+      const email = prompt('Enter your Apple ID email:');
+      if (!email || !email.includes('@')) return;
+      await submitCardAuth({ email: email.trim().toLowerCase(), provider: 'apple' });
+    }
+
+    function handleCardDirectEmailPrompt() {
+      const email = prompt('Enter your Google Account email to view your pass:');
+      if (email && email.includes('@')) {
+        submitCardAuth({ email: email.trim().toLowerCase() });
+      }
+    }
+
+    async function submitCardAuth(payload) {
+      showNotice('Loading your loyalty pass...', true);
+      const btn = document.getElementById('cardGoogleBtn');
+      const btnText = document.getElementById('cardGoogleBtnText');
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = 'Opening Pass...';
 
       try {
-        const res = await fetch('/api/customer/send-otp', {
+        const res = await fetch('/api/auth/google/customer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: input, email: input })
+          credentials: 'include',
+          body: JSON.stringify({ ...payload, shopSlug })
         });
         const data = await res.json();
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile →';
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Continue with Google';
 
-        if (data.success) {
-          document.getElementById('cardEmailForm').classList.add('hidden');
-          document.getElementById('cardOtpSection').classList.remove('hidden');
-
-          document.getElementById('cardOtpCodeInput').value = '';
-          document.getElementById('cardOtpPromptText').textContent = data.message || 'Enter your 6-digit code below.';
-          document.getElementById('cardOtpCodeInput').focus();
-        } else {
-          showNotice(data.message || 'Could not send verification code.', false);
-        }
-      } catch (err) {
-        btn.disabled = false;
-        btnText.textContent = 'Send OTP to Mobile →';
-        showNotice('Network error. Tap Quick 1-tap view below.', false);
-      }
-    }
-
-    // 2. Verify OTP & Load Card
-    async function handleVerifyCardOtp() {
-      const code = document.getElementById('cardOtpCodeInput').value.trim();
-      if (!code || code.length < 4) {
-        showNotice('Please enter the 6-digit OTP code.', false);
-        return;
-      }
-
-      const btn = document.getElementById('cardVerifyOtpBtn');
-      btn.disabled = true;
-      btn.textContent = 'Verifying Code & Loading Pass...';
-
-      try {
-        const verifyRes = await fetch('/api/customer/verify-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: currentCardOtpTarget,
-            email: currentCardOtpTarget,
-            otp: code
-          })
-        });
-        const verifyData = await verifyRes.json();
-
-        if (verifyData.success && verifyData.verificationToken) {
-          localStorage.setItem('loyalty_token', verifyData.verificationToken);
-          localStorage.setItem('loyalty_email', verifyData.verifiedPhone);
-          localStorage.setItem('loyalty_phone', verifyData.verifiedPhone);
+        if (data.success && data.card) {
+          if (data.sessionToken) localStorage.setItem('customer_session', data.sessionToken);
+          if (data.card.email) localStorage.setItem('loyalty_email', data.card.email);
 
           document.getElementById('authPromptBox').classList.add('hidden');
-          await loadCard(shopSlug, verifyData.verifiedPhone, verifyData.verificationToken);
-          showNotice(`✓ Loaded pass for ${verifyData.verifiedPhone}`, true);
-        } else {
-          showNotice(verifyData.message || 'Invalid OTP code. Please check and try again.', false);
-          btn.disabled = false;
-          btn.textContent = 'Verify OTP & Open Pass →';
-        }
-      } catch (err) {
-        showNotice('Network error verifying code.', false);
-        btn.disabled = false;
-        btn.textContent = 'Verify OTP & Open Pass →';
-      }
-    }
-
-    function cancelCardOtpStep() {
-      document.getElementById('cardOtpSection').classList.add('hidden');
-      document.getElementById('cardEmailForm').classList.remove('hidden');
-    }
-
-    function handleDirectOpenPass() {
-      const input = document.getElementById('cardDirectEmail').value.trim();
-      if (!input) {
-        showNotice('Please enter your mobile number or email above.', false);
-        document.getElementById('cardDirectEmail').focus();
-        return;
-      }
-      handleDirectEmailForCard({ preventDefault: () => {} });
-    }
-
-    // 3. Direct Email / Mobile Pass Lookup (Instant Bypass)
-    async function handleDirectEmailForCard(e) {
-      if (e) e.preventDefault();
-      const input = document.getElementById('cardDirectEmail').value.trim();
-      if (!input) {
-        showNotice('Please enter your email or mobile number.', false);
-        return;
-      }
-
-      const btn = document.getElementById('cardDirectEmailBtn');
-      btn.disabled = true;
-      btn.textContent = 'Opening Pass...';
-
-      try {
-        const res = await fetch('/api/customer/google-auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: input })
-        });
-        const data = await res.json();
-        btn.disabled = false;
-        btn.textContent = 'Open My Loyalty Pass →';
-
-        if (data.success && data.verificationToken) {
-          localStorage.setItem('loyalty_token', data.verificationToken);
-          localStorage.setItem('loyalty_email', data.email || input);
-          localStorage.setItem('loyalty_phone', data.email || input);
-          
-          document.getElementById('authPromptBox').classList.add('hidden');
-          await loadCard(shopSlug, data.email || input, data.verificationToken);
-          showNotice(`✓ Loaded pass for ${data.email || input}`, true);
+          renderCard(data.card, data.shop);
+          showNotice(`✓ Loaded pass for ${data.card.email}`, true);
         } else {
           showNotice(data.message || 'Could not verify account.', false);
         }
       } catch (err) {
-        btn.disabled = false;
-        btn.textContent = 'Open My Loyalty Pass →';
-        showNotice('Network error. Please try again.', false);
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = 'Continue with Google';
+        showNotice('Network error loading pass. Please try again.', false);
       }
     }
 

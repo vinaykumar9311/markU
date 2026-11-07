@@ -1792,8 +1792,14 @@
       document.getElementById('cornerDrawer').classList.toggle('hidden', !open);
     }
 
-    function handleLogout() {
+    async function handleLogout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      } catch {}
       localStorage.removeItem('owner_token');
+      localStorage.removeItem('owner_jwt');
+      localStorage.removeItem('owner_shop');
+      localStorage.removeItem('owner_user');
       window.location.href = '/owner/login.html';
     }
 

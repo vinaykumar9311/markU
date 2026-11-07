@@ -3,16 +3,55 @@
 -- Run this in your Supabase Dashboard: SQL Editor -> New Query -> Run
 -- ====================================================================
 
+-- 0. USERS TABLE (Unified Google & Apple OAuth accounts for Owners & Customers)
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    google_id TEXT UNIQUE,
+    apple_id TEXT UNIQUE,
+    avatar_url TEXT,
+    role TEXT NOT NULL CHECK (role IN ('owner', 'customer')),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON public.users (google_id);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users (role);
+
+-- SESSIONS TABLE (Refresh tokens, device fingerprints)
+CREATE TABLE IF NOT EXISTS public.sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    refresh_token TEXT UNIQUE NOT NULL,
+    device_fingerprint TEXT,
+    user_agent TEXT,
+    ip_address TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON public.sessions (refresh_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON public.sessions (user_id);
+
 -- 1. SHOPS TABLE (Each Registered Shop Owner has their own shop record)
 CREATE TABLE IF NOT EXISTS public.shops (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL, -- References auth.users(id) from Supabase Auth
+    owner_id UUID NOT NULL, -- References users(id)
     name TEXT NOT NULL,
     slug TEXT UNIQUE NOT NULL, -- e.g. 'royal-cafe', 'apex-barber'
     cooldown_hours NUMERIC DEFAULT 12 CHECK (cooldown_hours >= 0),
     stamps_target INTEGER DEFAULT 10 CHECK (stamps_target > 0),
     reward_description TEXT DEFAULT '1 Free Item',
     secret_key TEXT NOT NULL, -- Dedicated HMAC secret key per shop for counter QRs
+    google_review_url TEXT DEFAULT '',
+    instagram_url TEXT DEFAULT '',
+    logo_url TEXT DEFAULT '',
+    subscription_plan TEXT DEFAULT 'trial',
+    subscription_status TEXT DEFAULT 'active',
+    subscription_ends_at TIMESTAMPTZ DEFAULT (now() + interval '7 days'),
+    payment_reference TEXT DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -25,18 +64,22 @@ CREATE INDEX IF NOT EXISTS idx_shops_slug ON public.shops (slug);
 CREATE TABLE IF NOT EXISTS public.customer_cards (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID REFERENCES public.shops(id) ON DELETE CASCADE,
-    phone TEXT NOT NULL,
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    email TEXT,
+    google_id TEXT,
+    phone TEXT,
     name TEXT DEFAULT 'Customer',
     stamps INTEGER DEFAULT 0 CHECK (stamps >= 0),
     completed_cards INTEGER DEFAULT 0 CHECK (completed_cards >= 0),
     last_stamp_at TIMESTAMPTZ,
+    device_fingerprint TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    -- CRITICAL MULTI-TENANT SEPARATION CONSTRAINT:
-    CONSTRAINT uq_shop_customer UNIQUE (shop_id, phone)
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_customer_cards_shop_phone ON public.customer_cards (shop_id, phone);
+CREATE INDEX IF NOT EXISTS idx_customer_cards_shop ON public.customer_cards (shop_id);
+CREATE INDEX IF NOT EXISTS idx_customer_cards_user ON public.customer_cards (shop_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_customer_cards_email ON public.customer_cards (shop_id, email);
 
 -- 3. USED TOKENS TABLE (Single-use QR code burn ledger per shop)
 CREATE TABLE IF NOT EXISTS public.used_tokens (
