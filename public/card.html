@@ -213,13 +213,6 @@
         </button>
       </div>
 
-      <!-- Direct Email Prompt Fallback -->
-      <div class="pt-1 text-center">
-        <button type="button" onclick="handleCardDirectEmailPrompt()" class="text-xs text-gray-500 hover:text-gray-300 underline">
-          View pass with email address &rarr;
-        </button>
-      </div>
-
       <!-- Direct Camera Scan Option from Auth Screen -->
       <div class="pt-3 border-t border-white/10">
         <button type="button" onclick="openQrScanner()"
@@ -344,12 +337,30 @@
       }
     }
 
-    function triggerCardGoogleSignIn() {
+    async function triggerCardGoogleSignIn() {
       if (window.google && window.google.accounts && cardGoogleClientId) {
         window.google.accounts.id.prompt();
-      } else {
-        handleCardDirectEmailPrompt();
+        return;
       }
+
+      if (supabaseClient) {
+        showNotice('Redirecting to Google secure login...', true);
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.href
+            }
+          });
+          if (error) showNotice('Google OAuth error: ' + error.message, false);
+          return;
+        } catch (err) {
+          showNotice('Failed to open Google OAuth: ' + err.message, false);
+          return;
+        }
+      }
+
+      showNotice('Google OAuth is not configured. Set GOOGLE_CLIENT_ID in your server environment.', false);
     }
 
     async function handleCardGoogleResponse(response) {
@@ -361,15 +372,21 @@
     }
 
     async function handleCardAppleSignIn() {
-      const email = prompt('Enter your Apple ID email:');
-      if (!email || !email.includes('@')) return;
-      await submitCardAuth({ email: email.trim().toLowerCase(), provider: 'apple' });
-    }
-
-    function handleCardDirectEmailPrompt() {
-      const email = prompt('Enter your Google Account email to view your pass:');
-      if (email && email.includes('@')) {
-        submitCardAuth({ email: email.trim().toLowerCase() });
+      if (supabaseClient) {
+        showNotice('Redirecting to Apple secure login...', true);
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'apple',
+            options: {
+              redirectTo: window.location.href
+            }
+          });
+          if (error) showNotice('Apple OAuth error: ' + error.message, false);
+        } catch (err) {
+          showNotice('Failed to open Apple OAuth: ' + err.message, false);
+        }
+      } else {
+        showNotice('Apple OAuth requires Supabase configuration.', false);
       }
     }
 

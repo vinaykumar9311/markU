@@ -66,3 +66,4 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_customer_cards_user_id ON public.customer_cards (user_id);
 CREATE INDEX IF NOT EXISTS idx_customer_cards_email ON public.customer_cards (shop_id, email);
+

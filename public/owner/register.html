@@ -24,6 +24,8 @@
 
   <!-- Google Identity Services (GIS) SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Supabase JS Client for OAuth Redirection -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { 
@@ -237,11 +239,30 @@
       infoBanner.classList.remove('hidden');
     }
 
+    let supabaseClient = null;
+
     window.addEventListener('DOMContentLoaded', async () => {
-      // 1. Fetch Google Auth Config
+      // 1. Fetch Auth Config
       try {
         const confRes = await fetch('/api/config/auth');
         const conf = await confRes.json();
+        
+        if (conf.url && conf.anonKey && window.supabase) {
+          supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
+
+          // Check if returning from OAuth redirect with pending registration
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          const pendingRaw = sessionStorage.getItem('pending_shop_reg');
+          if (sessionData && sessionData.session && sessionData.session.access_token && pendingRaw) {
+            try {
+              const pendingData = JSON.parse(pendingRaw);
+              sessionStorage.removeItem('pending_shop_reg');
+              await submitRegistration({ ...pendingData, supabaseToken: sessionData.session.access_token });
+              return;
+            } catch {}
+          }
+        }
+
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
           initGoogleClient(conf.googleClientId);
@@ -296,18 +317,36 @@
       return { shopName, slug, stampsTarget, rewardDescription, cooldownHours };
     }
 
-    function triggerGoogleSignUp() {
+    async function triggerGoogleSignUp() {
       const formData = getShopFormData();
       if (!formData) return;
 
+      // Path A: Google GIS
       if (window.google && window.google.accounts && googleClientId) {
         window.google.accounts.id.prompt();
-      } else {
-        const email = prompt('Enter your Google Account email to launch shop:');
-        if (email && email.includes('@')) {
-          submitRegistration({ ...formData, email: email.trim().toLowerCase() });
+        return;
+      }
+
+      // Path B: Supabase OAuth
+      if (supabaseClient) {
+        sessionStorage.setItem('pending_shop_reg', JSON.stringify(formData));
+        showInfo('Redirecting to Google secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin + '/owner/register.html'
+            }
+          });
+          if (error) showError('Google OAuth error: ' + error.message);
+          return;
+        } catch (err) {
+          showError('Failed to initialize Google OAuth: ' + err.message);
+          return;
         }
       }
+
+      showError('Google OAuth is not configured on this server. Set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');
     }
 
     async function handleGoogleCredentialResponse(response) {
@@ -323,9 +362,23 @@
     async function handleAppleSignUp() {
       const formData = getShopFormData();
       if (!formData) return;
-      const email = prompt('Enter your Apple ID email:');
-      if (!email || !email.includes('@')) return;
-      await submitRegistration({ ...formData, email: email.trim().toLowerCase(), provider: 'apple' });
+      if (supabaseClient) {
+        sessionStorage.setItem('pending_shop_reg', JSON.stringify(formData));
+        showInfo('Redirecting to Apple secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'apple',
+            options: {
+              redirectTo: window.location.origin + '/owner/register.html'
+            }
+          });
+          if (error) showError('Apple OAuth error: ' + error.message);
+        } catch (err) {
+          showError('Failed to initialize Apple OAuth: ' + err.message);
+        }
+      } else {
+        showError('Apple OAuth requires Supabase configuration.');
+      }
     }
 
     function handleFormSubmit(e) {

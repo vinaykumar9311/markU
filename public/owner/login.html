@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shop Owner Sign In · Google & Apple OAuth · MarkU</title>
+  <title>Shop Owner Sign In · Google OAuth 2.0 · MarkU</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -15,6 +15,8 @@
   
   <!-- Google Identity Services (GIS) SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Supabase JS Client for OAuth Redirection -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body {
@@ -83,7 +85,7 @@
         <span>Owner Cockpit</span>
       </div>
       <h1 class="text-2xl font-extrabold tracking-tight text-white">Shop Owner Sign In</h1>
-      <p class="text-xs text-slate-400 mt-1">One-tap authentication with Google or Apple. 100% free, zero OTP costs.</p>
+      <p class="text-xs text-slate-400 mt-1">Cryptographically verified authentication with your real Google account.</p>
     </div>
 
     <!-- Error Banner -->
@@ -91,6 +93,16 @@
 
     <!-- Info Banner -->
     <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
+
+    <!-- Configuration Guide Notice (shown only if Google Client ID is unconfigured) -->
+    <div id="configNotice" class="hidden bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs rounded-xl p-3.5 space-y-1.5">
+      <div class="font-bold text-amber-300 flex items-center gap-1.5">
+        <span>⚙ Google OAuth Setup Required</span>
+      </div>
+      <p class="text-[11px] text-amber-200/90 leading-relaxed">
+        To sign in with real Google accounts, configure your <code class="bg-black/40 px-1 py-0.5 rounded font-mono text-white">GOOGLE_CLIENT_ID</code> in your <code class="bg-black/40 px-1 py-0.5 rounded font-mono text-white">.env</code> file or enable the Google provider in your Supabase Auth dashboard.
+      </p>
+    </div>
 
     <!-- Primary OAuth Buttons -->
     <div class="space-y-3">
@@ -121,27 +133,6 @@
       </button>
     </div>
 
-    <!-- Divider -->
-    <div class="relative flex py-1 items-center">
-      <div class="flex-grow border-t border-slate-800"></div>
-      <span class="flex-shrink mx-3 text-[11px] text-slate-500 font-semibold uppercase tracking-wider">or sign in with email</span>
-      <div class="flex-grow border-t border-slate-800"></div>
-    </div>
-
-    <!-- Direct Email Form (Zero OTP · Instant Access) -->
-    <form id="directLoginForm" onsubmit="handleDirectLogin(event)" class="space-y-4">
-      <div>
-        <label for="ownerEmail" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">Owner Email Address</label>
-        <input type="email" id="ownerEmail" required placeholder="owner@store.com"
-          class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono">
-      </div>
-
-      <button type="submit" id="directLoginBtn"
-        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2">
-        <span id="directLoginBtnText">Sign In to Cockpit &rarr;</span>
-      </button>
-    </form>
-
     <div class="text-center text-xs text-slate-400 pt-3 border-t border-slate-800/80">
       Need a new shop account? <a href="/owner/register.html" class="text-indigo-400 font-bold hover:underline">Enroll your shop with Google</a>
     </div>
@@ -149,11 +140,12 @@
   </main>
 
   <footer class="max-w-md w-full mx-auto pb-4 text-center text-xs text-slate-500 relative z-10">
-    MarkU SaaS Platform · Free Google OAuth Authentication
+    MarkU SaaS Platform · Cryptographic Google OAuth 2.0
   </footer>
 
   <script>
     let googleClientId = null;
+    let supabaseClient = null;
 
     function showError(msg) {
       const errorBanner = document.getElementById('errorBanner');
@@ -171,7 +163,7 @@
       infoBanner.classList.remove('hidden');
     }
 
-    // Initialize Auth Config & Google One-Tap
+    // Initialize Auth Config & Google GIS
     window.addEventListener('DOMContentLoaded', async () => {
       // 1. If already authenticated via 15-min JWT or cookie, test session status
       try {
@@ -185,13 +177,33 @@
         }
       } catch {}
 
-      // 2. Fetch Google Client ID from backend config
+      // 2. Fetch Auth Configuration
       try {
         const confRes = await fetch('/api/config/auth');
         const conf = await confRes.json();
+        
+        if (conf.url && conf.anonKey && window.supabase) {
+          supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
+          
+          // Check for redirect return from OAuth
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          if (sessionData && sessionData.session && sessionData.session.access_token) {
+            await submitOwnerAuth({ supabaseToken: sessionData.session.access_token });
+            return;
+          }
+
+          supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            if (session && session.access_token) {
+              await submitOwnerAuth({ supabaseToken: session.access_token });
+            }
+          });
+        }
+
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
           initGoogleClient(conf.googleClientId);
+        } else {
+          document.getElementById('configNotice').classList.remove('hidden');
         }
       } catch {}
     });
@@ -203,7 +215,7 @@
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: handleGoogleCredentialResponse,
-          auto_select: true
+          auto_select: false
         });
 
         const wrapper = document.getElementById('gsiButtonWrapper');
@@ -219,23 +231,40 @@
           wrapper.classList.remove('hidden');
         }
 
-        // Trigger One-Tap prompt
         window.google.accounts.id.prompt();
       } catch (err) {
         console.warn('GIS Init notice:', err.message);
       }
     }
 
-    function triggerGoogleSignIn() {
+    async function triggerGoogleSignIn() {
+      // Path A: Google Identity Services popup
       if (window.google && window.google.accounts && googleClientId) {
         window.google.accounts.id.prompt();
-      } else {
-        // Fallback prompt for email authentication
-        const email = prompt('Enter your Google Account email to continue:');
-        if (email && email.includes('@')) {
-          submitOwnerAuth({ email: email.trim().toLowerCase() });
+        return;
+      }
+
+      // Path B: Supabase OAuth redirect to real accounts.google.com
+      if (supabaseClient) {
+        showInfo('Redirecting to Google secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin + '/owner/login.html'
+            }
+          });
+          if (error) {
+            showError('Google OAuth error: ' + error.message);
+          }
+          return;
+        } catch (err) {
+          showError('Failed to initialize Google OAuth: ' + err.message);
+          return;
         }
       }
+
+      showError('Google OAuth is not yet configured. Please set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');
     }
 
     async function handleGoogleCredentialResponse(response) {
@@ -247,33 +276,26 @@
     }
 
     async function handleAppleSignIn() {
-      const email = prompt('Enter your Apple ID email:');
-      if (!email || !email.includes('@')) return;
-      await submitOwnerAuth({ email: email.trim().toLowerCase(), provider: 'apple' });
-    }
-
-    async function handleDirectLogin(e) {
-      e.preventDefault();
-      const emailInput = document.getElementById('ownerEmail');
-      const email = emailInput.value.trim().toLowerCase();
-      if (!email || !email.includes('@')) {
-        showError('Please enter a valid email address.');
-        return;
+      if (supabaseClient) {
+        showInfo('Redirecting to Apple secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'apple',
+            options: {
+              redirectTo: window.location.origin + '/owner/login.html'
+            }
+          });
+          if (error) showError('Apple OAuth error: ' + error.message);
+        } catch (err) {
+          showError('Failed to initialize Apple OAuth: ' + err.message);
+        }
+      } else {
+        showError('Apple OAuth requires Supabase Apple provider configuration.');
       }
-
-      const btn = document.getElementById('directLoginBtn');
-      const btnText = document.getElementById('directLoginBtnText');
-      btn.disabled = true;
-      if (btnText) btnText.textContent = 'Signing in...';
-
-      await submitOwnerAuth({ email });
-
-      btn.disabled = false;
-      if (btnText) btnText.textContent = 'Sign In to Cockpit →';
     }
 
     async function submitOwnerAuth(payload) {
-      showInfo('Authenticating with Cockpit...');
+      showInfo('Verifying with Google servers...');
       try {
         const res = await fetch('/api/auth/google/owner', {
           method: 'POST',
@@ -289,12 +311,12 @@
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
           if (data.user) localStorage.setItem('owner_user', JSON.stringify(data.user));
 
-          showInfo('Authentication successful. Opening Cockpit...');
+          showInfo('Google account verified. Opening Cockpit...');
           setTimeout(() => {
             window.location.href = data.redirect || '/dashboard';
           }, 400);
         } else {
-          showError(data.message || 'Authentication failed. Please try again.');
+          showError(data.message || 'Authentication failed. Cryptographic signature was not verified by Google.');
         }
       } catch (err) {
         showError('Network error while authenticating. Please try again.');

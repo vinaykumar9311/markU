@@ -27,6 +27,8 @@
   
   <!-- Google Identity Services (GIS) SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Supabase JS Client for OAuth Redirection -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { 
@@ -215,14 +217,6 @@
         </button>
 
       </div>
-
-      <!-- Quick Email Fallback -->
-      <div class="pt-2 text-center">
-        <button type="button" onclick="handleDirectEmailPrompt()" class="text-xs text-slate-500 hover:text-slate-300 underline">
-          Sign in with email instead &rarr;
-        </button>
-      </div>
-
     </div>
 
     <!-- ======================================================== -->
@@ -310,10 +304,20 @@
       // 1. Fetch Shop Info
       await loadShopInfo();
 
-      // 2. Fetch Google Client ID
+      // 2. Fetch Auth Configuration (Google Client ID & Supabase)
       try {
         const confRes = await fetch('/api/config/auth');
         const conf = await confRes.json();
+        if (conf.url && conf.anonKey && window.supabase) {
+          supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
+          
+          // Check for redirect return from OAuth
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          if (sessionData && sessionData.session && sessionData.session.access_token) {
+            await submitCustomerAuth({ supabaseToken: sessionData.session.access_token });
+            return;
+          }
+        }
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
           initGoogleClient(conf.googleClientId);
@@ -399,12 +403,32 @@
       }
     }
 
-    function triggerCustomerGoogleSignIn() {
+    async function triggerCustomerGoogleSignIn() {
+      // Path A: Google GIS One-Tap
       if (window.google && window.google.accounts && googleClientId) {
         window.google.accounts.id.prompt();
-      } else {
-        handleDirectEmailPrompt();
+        return;
       }
+
+      // Path B: Supabase Google OAuth Redirect
+      if (supabaseClient) {
+        showAlert('Redirecting to Google secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.href
+            }
+          });
+          if (error) showAlert('Google OAuth error: ' + error.message, 'rose');
+          return;
+        } catch (err) {
+          showAlert('Failed to open Google OAuth: ' + err.message, 'rose');
+          return;
+        }
+      }
+
+      showAlert('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID in your server environment.', 'amber');
     }
 
     async function handleGoogleCredentialResponse(response) {
@@ -416,15 +440,21 @@
     }
 
     async function handleAppleCustomerSignIn() {
-      const email = prompt('Enter your Apple ID email:');
-      if (!email || !email.includes('@')) return;
-      await submitCustomerAuth({ email: email.trim().toLowerCase(), provider: 'apple' });
-    }
-
-    function handleDirectEmailPrompt() {
-      const email = prompt('Enter your Google Account or email address:');
-      if (email && email.includes('@')) {
-        submitCustomerAuth({ email: email.trim().toLowerCase() });
+      if (supabaseClient) {
+        showAlert('Redirecting to Apple secure login...');
+        try {
+          const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'apple',
+            options: {
+              redirectTo: window.location.href
+            }
+          });
+          if (error) showAlert('Apple OAuth error: ' + error.message, 'rose');
+        } catch (err) {
+          showAlert('Failed to open Apple OAuth: ' + err.message, 'rose');
+        }
+      } else {
+        showAlert('Apple OAuth requires Supabase configuration.', 'amber');
       }
     }
 

@@ -604,55 +604,49 @@ async function verifyGoogleToken(idToken) {
     } catch {}
   }
 
-  // 3. Fallback for JWT payload parsing in demo/test/offline mode
-  try {
-    const parts = idToken.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-      if (payload.email) {
-        return {
-          success: true,
-          googleId: payload.sub || payload.id || crypto.randomUUID(),
-          email: payload.email.toLowerCase().trim(),
-          name: payload.name || payload.email.split('@')[0],
-          avatarUrl: payload.picture || null,
-          emailVerified: true
-        };
+  // 3. Fallback for unit testing mode ONLY (Strictly disabled in local and production environments)
+  if (process.env.NODE_ENV === 'test') {
+    try {
+      const parts = idToken.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+        if (payload.email) {
+          return {
+            success: true,
+            googleId: payload.sub || payload.id || crypto.randomUUID(),
+            email: payload.email.toLowerCase().trim(),
+            name: payload.name || payload.email.split('@')[0],
+            avatarUrl: payload.picture || null,
+            emailVerified: true
+          };
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
-  return { success: false, reason: 'Invalid or expired Google credential' };
+  return { success: false, reason: 'Invalid or unverified Google credential. Cryptographic token signature check failed.' };
 }
 
 // --------------------------------------------------------------------
 // A. SHOP OWNER GOOGLE AUTH HANDLER (/api/auth/google/owner)
 // --------------------------------------------------------------------
 app.post('/api/auth/google/owner', async (req, res) => {
-  const { credential, id_token, token, supabaseToken, email: manualEmail, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, deviceFingerprint } = req.body;
+  const { credential, id_token, token, supabaseToken, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, deviceFingerprint } = req.body;
   const authToken = credential || id_token || token || supabaseToken;
 
-  let cleanEmail = null;
-  let ownerName = null;
-  let googleId = null;
-  let avatarUrl = null;
-
-  if (authToken) {
-    const verified = await verifyGoogleToken(authToken);
-    if (!verified.success || !verified.email) {
-      return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
-    }
-    cleanEmail = verified.email;
-    ownerName = verified.name;
-    googleId = verified.googleId;
-    avatarUrl = verified.avatarUrl;
-  } else if (manualEmail && manualEmail.includes('@')) {
-    cleanEmail = manualEmail.trim().toLowerCase();
-    ownerName = manualName || cleanEmail.split('@')[0];
-    googleId = 'manual_' + crypto.createHash('sha256').update(cleanEmail).digest('hex').slice(0, 16);
-  } else {
-    return res.status(400).json({ success: false, message: 'Missing Google authentication credential.' });
+  if (!authToken) {
+    return res.status(401).json({ success: false, message: 'Missing Google OAuth token. Sign in through Google is required.' });
   }
+
+  const verified = await verifyGoogleToken(authToken);
+  if (!verified.success || !verified.email) {
+    return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+  }
+
+  const cleanEmail = verified.email;
+  const ownerName = verified.name || manualName || cleanEmail.split('@')[0];
+  const googleId = verified.googleId;
+  const avatarUrl = verified.avatarUrl;
 
   const isSecure = process.env.NODE_ENV === 'production' || req.secure || req.headers['x-forwarded-proto'] === 'https';
   const db = loadLocalDb();
@@ -872,22 +866,17 @@ app.post('/api/auth/google/customer', async (req, res) => {
     googleId = 'apple_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
   } else {
     const authToken = credential || id_token || token || supabaseToken;
-    if (authToken) {
-      const verified = await verifyGoogleToken(authToken);
-      if (!verified.success || !verified.email) {
-        return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
-      }
-      customerEmail = verified.email;
-      customerName = verified.name;
-      googleId = verified.googleId;
-      avatarUrl = verified.avatarUrl;
-    } else if (email && email.includes('@')) {
-      customerEmail = email.trim().toLowerCase();
-      customerName = name || customerEmail.split('@')[0];
-      googleId = 'test_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
-    } else {
-      return res.status(400).json({ success: false, message: 'Missing Google authentication token.' });
+    if (!authToken) {
+      return res.status(401).json({ success: false, message: 'Missing Google authentication token. Sign in through Google is required.' });
     }
+    const verified = await verifyGoogleToken(authToken);
+    if (!verified.success || !verified.email) {
+      return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+    }
+    customerEmail = verified.email;
+    customerName = verified.name;
+    googleId = verified.googleId;
+    avatarUrl = verified.avatarUrl;
   }
 
   const shop = await resolveShopBySlug(shopSlug || shopId);
