@@ -404,13 +404,7 @@
     }
 
     async function triggerCustomerGoogleSignIn() {
-      // Path A: Google GIS One-Tap
-      if (window.google && window.google.accounts && googleClientId) {
-        window.google.accounts.id.prompt();
-        return;
-      }
-
-      // Path B: Supabase Google OAuth Redirect
+      // Primary: Supabase Google OAuth Redirect
       if (supabaseClient) {
         showAlert('Redirecting to Google secure login...');
         try {
@@ -420,12 +414,23 @@
               redirectTo: window.location.href
             }
           });
-          if (error) showAlert('Google OAuth error: ' + error.message, 'rose');
+          if (error) {
+            showAlert('Google OAuth error: ' + error.message, 'rose');
+            if (window.google && window.google.accounts && googleClientId) {
+              window.google.accounts.id.prompt();
+            }
+          }
           return;
         } catch (err) {
           showAlert('Failed to open Google OAuth: ' + err.message, 'rose');
           return;
         }
+      }
+
+      // Secondary: Google GIS One-Tap
+      if (window.google && window.google.accounts && googleClientId) {
+        window.google.accounts.id.prompt();
+        return;
       }
 
       showAlert('Google OAuth is not configured. Please set GOOGLE_CLIENT_ID in your server environment.', 'amber');

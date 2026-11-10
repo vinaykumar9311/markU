@@ -321,13 +321,7 @@
       const formData = getShopFormData();
       if (!formData) return;
 
-      // Path A: Google GIS
-      if (window.google && window.google.accounts && googleClientId) {
-        window.google.accounts.id.prompt();
-        return;
-      }
-
-      // Path B: Supabase OAuth
+      // Primary: Supabase OAuth
       if (supabaseClient) {
         sessionStorage.setItem('pending_shop_reg', JSON.stringify(formData));
         showInfo('Redirecting to Google secure login...');
@@ -338,12 +332,23 @@
               redirectTo: window.location.origin + '/owner/register.html'
             }
           });
-          if (error) showError('Google OAuth error: ' + error.message);
+          if (error) {
+            showError('Google OAuth error: ' + error.message);
+            if (window.google && window.google.accounts && googleClientId) {
+              window.google.accounts.id.prompt();
+            }
+          }
           return;
         } catch (err) {
           showError('Failed to initialize Google OAuth: ' + err.message);
           return;
         }
+      }
+
+      // Secondary: Google GIS
+      if (window.google && window.google.accounts && googleClientId) {
+        window.google.accounts.id.prompt();
+        return;
       }
 
       showError('Google OAuth is not configured on this server. Set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');

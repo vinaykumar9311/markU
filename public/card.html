@@ -338,11 +338,6 @@
     }
 
     async function triggerCardGoogleSignIn() {
-      if (window.google && window.google.accounts && cardGoogleClientId) {
-        window.google.accounts.id.prompt();
-        return;
-      }
-
       if (supabaseClient) {
         showNotice('Redirecting to Google secure login...', true);
         try {
@@ -352,12 +347,22 @@
               redirectTo: window.location.href
             }
           });
-          if (error) showNotice('Google OAuth error: ' + error.message, false);
+          if (error) {
+            showNotice('Google OAuth error: ' + error.message, false);
+            if (window.google && window.google.accounts && cardGoogleClientId) {
+              window.google.accounts.id.prompt();
+            }
+          }
           return;
         } catch (err) {
           showNotice('Failed to open Google OAuth: ' + err.message, false);
           return;
         }
+      }
+
+      if (window.google && window.google.accounts && cardGoogleClientId) {
+        window.google.accounts.id.prompt();
+        return;
       }
 
       showNotice('Google OAuth is not configured. Set GOOGLE_CLIENT_ID in your server environment.', false);

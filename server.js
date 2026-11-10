@@ -57,13 +57,19 @@ function getLanIp() {
 const LAN_IP = getLanIp();
 
 // --------------------------------------------------------------------
-// 1. SUPABASE CLIENT INITIALIZATION
 // --------------------------------------------------------------------
+// 1. SUPABASE CLIENT INITIALIZATION & LIVE DEFAULTS
+// --------------------------------------------------------------------
+const DEFAULT_SUPABASE_URL = 'https://edqiurouaeabnyhtzqjk.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcWl1cm91YWVhYm55aHR6cWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQxMjM4OTUsImV4cCI6MjEwOTY5OTg5NX0.eQIuOoUUQQaqHAHrcfcQ69ec77t39CgY8C4NbXYtQ6Y';
+const DEFAULT_GOOGLE_CLIENT_ID = '365629360703-pkonrtr6snvne6rpsko2getseg0t5fog.apps.googleusercontent.com';
+
 let supabase = null;
-const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
-if (process.env.SUPABASE_URL && sbKey) {
+const sbUrl = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+if (sbUrl && sbKey) {
   try {
-    supabase = createClient(process.env.SUPABASE_URL, sbKey, {
+    supabase = createClient(sbUrl, sbKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
     console.log('[Supabase] Multi-tenant client connected.');
@@ -209,9 +215,9 @@ app.get('/ready', (req, res) => {
 
 // Unified Auth Config Endpoint (Google Client ID & Supabase)
 app.get('/api/config/auth', (req, res) => {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || '';
-  const url = process.env.SUPABASE_URL || 'https://hzcgxiflvtinwguibyfi.supabase.co';
-  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_mAu8qPZ6sT05_qGgYd1unQ_-_NHa4Mm';
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+  const url = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_ANON_KEY;
   return res.json({
     googleClientId,
     isGoogleConfigured: !!googleClientId,
@@ -222,11 +228,12 @@ app.get('/api/config/auth', (req, res) => {
 
 // Endpoint providing Supabase Client Config to frontend (login, register, scan, card)
 app.get('/api/config/supabase', (req, res) => {
-  const url = process.env.SUPABASE_URL || 'https://hzcgxiflvtinwguibyfi.supabase.co';
-  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_mAu8qPZ6sT05_qGgYd1unQ_-_NHa4Mm';
+  const url = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
   return res.json({
     isConfigured: !!(url && anonKey),
-    googleClientId: process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || '',
+    googleClientId,
     url,
     anonKey
   });

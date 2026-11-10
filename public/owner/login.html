@@ -238,13 +238,7 @@
     }
 
     async function triggerGoogleSignIn() {
-      // Path A: Google Identity Services popup
-      if (window.google && window.google.accounts && googleClientId) {
-        window.google.accounts.id.prompt();
-        return;
-      }
-
-      // Path B: Supabase OAuth redirect to real accounts.google.com
+      // Primary: Supabase OAuth redirect to real accounts.google.com (reliable across all browsers and devices)
       if (supabaseClient) {
         showInfo('Redirecting to Google secure login...');
         try {
@@ -256,12 +250,22 @@
           });
           if (error) {
             showError('Google OAuth error: ' + error.message);
+            // Fallback to GIS prompt if Supabase threw an error
+            if (window.google && window.google.accounts && googleClientId) {
+              window.google.accounts.id.prompt();
+            }
           }
           return;
         } catch (err) {
           showError('Failed to initialize Google OAuth: ' + err.message);
           return;
         }
+      }
+
+      // Secondary: Google Identity Services popup
+      if (window.google && window.google.accounts && googleClientId) {
+        window.google.accounts.id.prompt();
+        return;
       }
 
       showError('Google OAuth is not yet configured. Please set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');
