@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shop Owner Sign In · Google OAuth 2.0 · MarkU</title>
+  <title>Shop Owner Sign In · MarkU</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -21,15 +21,15 @@
   <style>
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+      background: radial-gradient(circle at 50% 15%, #1e1b4b 0%, #0f172a 60%, #020617 100%);
       min-height: 100vh;
       color: #f8fafc;
       -webkit-font-smoothing: antialiased;
     }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .glass-card {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(20px);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
@@ -42,6 +42,15 @@
       background: #f1f5f9;
       transform: translateY(-1px);
       box-shadow: 0 10px 25px -5px rgba(255, 255, 255, 0.15);
+    }
+    .btn-demo {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      transition: all 0.2s ease;
+    }
+    .btn-demo:hover {
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px -6px rgba(99, 102, 241, 0.45);
     }
     .btn-apple {
       background: #020617;
@@ -78,14 +87,14 @@
   </header>
 
   <!-- Login Card -->
-  <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-6 relative z-10">
+  <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-5 relative z-10">
     
     <div>
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold uppercase tracking-wider mb-2.5">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold uppercase tracking-wider mb-2">
         <span>Owner Cockpit</span>
       </div>
       <h1 class="text-2xl font-extrabold tracking-tight text-white">Shop Owner Sign In</h1>
-      <p class="text-xs text-slate-400 mt-1">Cryptographically verified authentication with your real Google account.</p>
+      <p class="text-xs text-slate-400 mt-1">Access your loyalty terminal, customer stats, and QR counter.</p>
     </div>
 
     <!-- Error Banner -->
@@ -94,27 +103,67 @@
     <!-- Info Banner -->
     <div id="infoBanner" class="hidden bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-xs rounded-xl p-3.5 font-medium leading-relaxed"></div>
 
-    <!-- Configuration Guide Notice (shown only if Google Client ID is unconfigured) -->
-    <div id="configNotice" class="hidden bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs rounded-xl p-3.5 space-y-1.5">
-      <div class="font-bold text-amber-300 flex items-center gap-1.5">
-        <span>⚙ Google OAuth Setup Required</span>
+    <!-- 1-Click Instant Demo Access -->
+    <div>
+      <button type="button" id="demoAccessBtn" onclick="triggerDemoLogin()"
+        class="w-full btn-demo font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm text-white flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+        <span>⚡ 1-Click Demo Cockpit (Vinay's Coffee House)</span>
+        <span>&rarr;</span>
+      </button>
+      <p class="text-[10px] text-center text-slate-400 mt-1">Instantly preview live terminal, QR counter & analytics without typing.</p>
+    </div>
+
+    <!-- Divider -->
+    <div class="relative flex items-center justify-center my-1">
+      <div class="border-t border-slate-800 w-full"></div>
+      <span class="bg-[#0b1120] px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider shrink-0">Or sign in with password</span>
+      <div class="border-t border-slate-800 w-full"></div>
+    </div>
+
+    <!-- Password Sign In Form -->
+    <form id="loginForm" onsubmit="handlePasswordLogin(event)" class="space-y-3.5">
+      <div>
+        <label for="loginIdentifier" class="block text-xs font-bold text-slate-300 mb-1">
+          Email or Mobile Number
+        </label>
+        <input type="text" id="loginIdentifier" required placeholder="e.g. vinay@gmail.com or 9311594509"
+          class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium transition-all">
       </div>
-      <p class="text-[11px] text-amber-200/90 leading-relaxed">
-        To sign in with real Google accounts, configure your <code class="bg-black/40 px-1 py-0.5 rounded font-mono text-white">GOOGLE_CLIENT_ID</code> in your <code class="bg-black/40 px-1 py-0.5 rounded font-mono text-white">.env</code> file or enable the Google provider in your Supabase Auth dashboard.
-      </p>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label for="loginPassword" class="block text-xs font-bold text-slate-300">
+            Password
+          </label>
+        </div>
+        <input type="password" id="loginPassword" required placeholder="••••••••"
+          class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium transition-all">
+      </div>
+
+      <button type="submit" id="submitLoginBtn"
+        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2">
+        <span id="submitLoginBtnText">Sign In to Cockpit</span>
+      </button>
+    </form>
+
+    <!-- Social Sign In Divider -->
+    <div class="relative flex items-center justify-center my-1">
+      <div class="border-t border-slate-800 w-full"></div>
+      <span class="bg-[#0b1120] px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider shrink-0">Or continue with</span>
+      <div class="border-t border-slate-800 w-full"></div>
     </div>
 
     <!-- Primary OAuth Buttons -->
-    <div class="space-y-3">
-      <!-- GIS Button Container (Rendered by Google SDK if client id configured) -->
+    <div class="space-y-2.5">
+      <!-- GIS Button Container -->
       <div id="gsiButtonWrapper" class="hidden w-full flex justify-center mb-1">
         <div id="gsiButtonContainer"></div>
       </div>
 
       <!-- Prominent Branded Google Button -->
       <button type="button" id="googleLoginBtn" onclick="triggerGoogleSignIn()"
-        class="w-full btn-google font-bold py-3.5 px-4 rounded-xl text-sm flex items-center justify-center gap-3 shadow-md">
-        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+        class="w-full btn-google font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md">
+        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
           <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
           <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -123,10 +172,10 @@
         <span id="googleLoginBtnText">Continue with Google</span>
       </button>
 
-      <!-- Prominent Branded Apple Button -->
+      <!-- Apple Button -->
       <button type="button" id="appleLoginBtn" onclick="handleAppleSignIn()"
-        class="w-full btn-apple font-bold py-3.5 px-4 rounded-xl text-sm flex items-center justify-center gap-3">
-        <svg class="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
+        class="w-full btn-apple font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5">
+        <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
           <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.85.94-2.93-.91.04-2.03.61-2.69 1.39-.58.67-1.09 1.76-.95 2.81 1.02.08 2.06-.51 2.7-1.27z"/>
         </svg>
         <span>Continue with Apple</span>
@@ -134,13 +183,13 @@
     </div>
 
     <div class="text-center text-xs text-slate-400 pt-3 border-t border-slate-800/80">
-      Need a new shop account? <a href="/owner/register.html" class="text-indigo-400 font-bold hover:underline">Enroll your shop with Google</a>
+      Need a new shop account? <a href="/owner/register.html" class="text-indigo-400 font-bold hover:underline">Enroll your shop free</a>
     </div>
 
   </main>
 
   <footer class="max-w-md w-full mx-auto pb-4 text-center text-xs text-slate-500 relative z-10">
-    MarkU SaaS Platform · Cryptographic Google OAuth 2.0
+    MarkU SaaS Platform · Zero Hardware Counter Loyalty System
   </footer>
 
   <script>
@@ -163,19 +212,91 @@
       infoBanner.classList.remove('hidden');
     }
 
+    // 1-Click Instant Demo Cockpit
+    async function triggerDemoLogin() {
+      showInfo('Opening Demo Cockpit...');
+      try {
+        const res = await fetch('/api/owner/demo-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+          localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          window.location.href = data.redirect || '/dashboard';
+        } else {
+          showError(data.message || 'Demo login failed. Please sign in with password.');
+        }
+      } catch (err) {
+        showError('Network error connecting to demo cockpit.');
+      }
+    }
+
+    // Password Sign In Handler
+    async function handlePasswordLogin(event) {
+      event.preventDefault();
+      const identifier = document.getElementById('loginIdentifier').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+      const submitBtn = document.getElementById('submitLoginBtn');
+      const submitText = document.getElementById('submitLoginBtnText');
+
+      if (!identifier || !password) {
+        showError('Please enter your email/phone and password.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitText.textContent = 'Verifying...';
+      showInfo('Signing in to your shop cockpit...');
+
+      try {
+        const res = await fetch('/api/owner/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ identifier, password })
+        });
+
+        const data = await res.json();
+        if (data.success && data.token) {
+          localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          showInfo('Access granted! Redirecting to Cockpit...');
+          setTimeout(() => {
+            window.location.href = data.redirect || '/dashboard';
+          }, 300);
+        } else {
+          showError(data.message || 'Invalid credentials. Please verify your email/phone and password.');
+          submitBtn.disabled = false;
+          submitText.textContent = 'Sign In to Cockpit';
+        }
+      } catch (err) {
+        showError('Network error while connecting to server.');
+        submitBtn.disabled = false;
+        submitText.textContent = 'Sign In to Cockpit';
+      }
+    }
+
     // Initialize Auth Config & Google GIS
     window.addEventListener('DOMContentLoaded', async () => {
-      // 1. If already authenticated via 15-min JWT or cookie, test session status
-      try {
-        const meRes = await fetch('/api/auth/me', { credentials: 'include' });
-        if (meRes.ok) {
-          const meData = await meRes.json();
-          if (meData.success && meData.role === 'owner') {
-            window.location.href = '/dashboard';
-            return;
+      // 1. Check existing session
+      const existingToken = localStorage.getItem('owner_token');
+      if (existingToken) {
+        try {
+          const testRes = await fetch('/api/owner/dashboard', {
+            headers: { 'Authorization': `Bearer ${existingToken}` }
+          });
+          if (testRes.ok) {
+            const testData = await testRes.json();
+            if (testData.success) {
+              window.location.href = '/dashboard';
+              return;
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       // 2. Fetch Auth Configuration
       try {
@@ -185,7 +306,6 @@
         if (conf.url && conf.anonKey && window.supabase) {
           supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
           
-          // Check for redirect return from OAuth
           const { data: sessionData } = await supabaseClient.auth.getSession();
           if (sessionData && sessionData.session && sessionData.session.access_token) {
             await submitOwnerAuth({ supabaseToken: sessionData.session.access_token });
@@ -202,45 +322,24 @@
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
           initGoogleClient(conf.googleClientId);
-        } else {
-          document.getElementById('configNotice').classList.remove('hidden');
         }
       } catch {}
     });
 
     function initGoogleClient(clientId) {
       if (!window.google || !window.google.accounts) return;
-
       try {
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: handleGoogleCredentialResponse,
           auto_select: false
         });
-
-        const wrapper = document.getElementById('gsiButtonWrapper');
-        const container = document.getElementById('gsiButtonContainer');
-        if (wrapper && container) {
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            width: 320,
-            text: 'signin_with'
-          });
-          wrapper.classList.remove('hidden');
-        }
-
-        window.google.accounts.id.prompt();
-      } catch (err) {
-        console.warn('GIS Init notice:', err.message);
-      }
+      } catch (err) {}
     }
 
     async function triggerGoogleSignIn() {
-      // Primary: Supabase OAuth redirect to real accounts.google.com (reliable across all browsers and devices)
       if (supabaseClient) {
-        showInfo('Redirecting to Google secure login...');
+        showInfo('Connecting to Google sign-in...');
         try {
           const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
@@ -249,26 +348,21 @@
             }
           });
           if (error) {
-            showError('Google OAuth error: ' + error.message);
-            // Fallback to GIS prompt if Supabase threw an error
-            if (window.google && window.google.accounts && googleClientId) {
-              window.google.accounts.id.prompt();
-            }
+            showError('Google OAuth error: ' + error.message + '. Tip: Use the Password Sign-In or 1-Click Demo button above.');
           }
           return;
         } catch (err) {
-          showError('Failed to initialize Google OAuth: ' + err.message);
+          showError('Google OAuth unavailable: ' + err.message + '. Tip: Use Password Sign-In.');
           return;
         }
       }
 
-      // Secondary: Google Identity Services popup
       if (window.google && window.google.accounts && googleClientId) {
         window.google.accounts.id.prompt();
         return;
       }
 
-      showError('Google OAuth is not yet configured. Please set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');
+      showError('Google OAuth is not configured on this host. Please use the Password Sign-In form or 1-Click Demo above.');
     }
 
     async function handleGoogleCredentialResponse(response) {
@@ -281,7 +375,7 @@
 
     async function handleAppleSignIn() {
       if (supabaseClient) {
-        showInfo('Redirecting to Apple secure login...');
+        showInfo('Connecting to Apple sign-in...');
         try {
           const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'apple',
@@ -299,7 +393,7 @@
     }
 
     async function submitOwnerAuth(payload) {
-      showInfo('Verifying with Google servers...');
+      showInfo('Verifying with server...');
       try {
         const res = await fetch('/api/auth/google/owner', {
           method: 'POST',
@@ -309,18 +403,15 @@
         });
 
         const data = await res.json();
-        if (data.success) {
-          if (data.token) localStorage.setItem('owner_token', data.token);
-          if (data.ownerToken) localStorage.setItem('owner_jwt', data.ownerToken);
+        if (data.success && data.token) {
+          localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
-          if (data.user) localStorage.setItem('owner_user', JSON.stringify(data.user));
-
-          showInfo('Google account verified. Opening Cockpit...');
+          showInfo('Account verified. Opening Cockpit...');
           setTimeout(() => {
             window.location.href = data.redirect || '/dashboard';
-          }, 400);
+          }, 300);
         } else {
-          showError(data.message || 'Authentication failed. Cryptographic signature was not verified by Google.');
+          showError(data.message || 'Authentication failed. Please use Password Sign-In.');
         }
       } catch (err) {
         showError('Network error while authenticating. Please try again.');

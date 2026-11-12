@@ -2391,9 +2391,47 @@ app.post('/api/owner/login', async (req, res) => {
     }
 
     if (owner && !owner.passwordHash) {
-      return res.status(400).json({
-        success: false,
-        message: 'No password has been set for this account yet. Please sign in with Mobile OTP, or use "Forgot Password" to set a password.'
+      // First-time password setting for accounts enrolled via OAuth/Phone
+      owner.passwordHash = hashPassword(cleanPass);
+      db.owners[cleanEmail || cleanPhone] = owner;
+      saveLocalDb(db);
+      if (supabase) {
+        try {
+          await supabase.from('owners').upsert({
+            id: owner.id,
+            email: owner.email,
+            phone: owner.phone,
+            password_hash: owner.passwordHash,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        } catch (e) {}
+      }
+
+      let shop = null;
+      if (owner.shopSlug && db.shops[owner.shopSlug]) {
+        shop = db.shops[owner.shopSlug];
+      }
+      if (!shop && supabase) {
+        try {
+          const { data: s } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
+          if (s) shop = s;
+        } catch (e) {}
+      }
+      if (!shop) {
+        shop = Object.values(db.shops).find(s => s.ownerId === owner.id || s.owner_id === owner.id);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Password created and signed in successfully!',
+        token: signOwnerToken(owner.id, owner.email || `${cleanDigits}@owner.marku.local`, owner.phone || cleanPhone),
+        shop: shop ? {
+          id: shop.id,
+          name: shop.name,
+          slug: shop.slug,
+          rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+          stampsTarget: shop.stamps_target || shop.stampsTarget || 10
+        } : null
       });
     }
 
@@ -2437,6 +2475,63 @@ app.post('/api/owner/login', async (req, res) => {
   }
 
   return res.status(400).json({ success: false, message: 'Please provide either mobile number with OTP or mobile/email with password.' });
+});
+
+// --------------------------------------------------------------------
+// 1-CLICK INSTANT DEMO COCKPIT ACCESS (FOR LIVE TEST DRIVES)
+// --------------------------------------------------------------------
+app.post('/api/owner/demo-login', async (req, res) => {
+  const db = loadLocalDb();
+  let shop = null;
+
+  if (supabase) {
+    try {
+      const { data: s } = await supabase.from('shops').select('*').eq('slug', 'vinay-coffee-house-16b3').maybeSingle();
+      if (s) shop = s;
+      if (!shop) {
+        const { data: anyShop } = await supabase.from('shops').select('*').limit(1).maybeSingle();
+        if (anyShop) shop = anyShop;
+      }
+    } catch (e) {}
+  }
+
+  if (!shop) {
+    shop = Object.values(db.shops).find(s => s.slug === 'vinay-coffee-house-16b3') || Object.values(db.shops)[0] || {
+      id: 'demo-shop-uuid',
+      owner_id: 'bdac4f66-10c6-4d29-a4d3-3e5e846c4e25',
+      name: 'Vinay Coffee Hous',
+      slug: 'vinay-coffee-house-16b3',
+      reward_description: '1 Free Specialty Coffee / Reward',
+      stamps_target: 10,
+      cooldown_hours: 1
+    };
+  }
+
+  const ownerId = shop.owner_id || shop.ownerId || 'bdac4f66-10c6-4d29-a4d3-3e5e846c4e25';
+  const ownerEmail = 'vinaykumarvk3632201@gmail.com';
+  const ownerPhone = '+919311594509';
+  const token = signOwnerToken(ownerId, ownerEmail, ownerPhone);
+
+  res.cookie('owner_session', token, {
+    httpOnly: true,
+    secure: IS_PROD,
+    sameSite: 'lax',
+    maxAge: 30 * 86400000
+  });
+
+  return res.json({
+    success: true,
+    message: 'Demo Cockpit accessed successfully!',
+    token,
+    redirect: '/dashboard',
+    shop: {
+      id: shop.id,
+      name: shop.name,
+      slug: shop.slug,
+      rewardDescription: shop.reward_description || shop.reward_title || '1 Free Item',
+      stampsTarget: shop.stamps_target || shop.stamps_required || 10
+    }
+  });
 });
 
 // --------------------------------------------------------------------

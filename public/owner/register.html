@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enroll Your Shop · Google Sign-In · MarkU</title>
+  <title>Enroll Your Shop · MarkU</title>
   
   <!-- Progressive Web App (PWA) Manifest & Meta -->
   <link rel="manifest" href="/manifest.json">
@@ -37,8 +37,8 @@
     }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
     .glass-card {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(20px);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
     }
@@ -51,6 +51,15 @@
       background: #f1f5f9;
       transform: translateY(-1px);
       box-shadow: 0 10px 25px -5px rgba(255, 255, 255, 0.15);
+    }
+    .btn-launch {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      transition: all 0.2s ease;
+    }
+    .btn-launch:hover {
+      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px -6px rgba(99, 102, 241, 0.45);
     }
     .btn-apple {
       background: #020617;
@@ -91,10 +100,10 @@
     
     <div>
       <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold uppercase tracking-wider mb-2.5">
-        <span>7-Day Free Trial · Zero Hardware</span>
+        <span>7-Day Free Trial · Zero Hardware Setup</span>
       </div>
       <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Launch Your Shop Rewards</h1>
-      <p class="text-xs sm:text-sm text-slate-400 mt-1">Configure your loyalty program and sign in with Google to start rewarding repeat customers.</p>
+      <p class="text-xs sm:text-sm text-slate-400 mt-1">Configure your loyalty counter program and create your merchant credentials.</p>
     </div>
 
     <!-- Error Banner -->
@@ -112,7 +121,7 @@
           <label for="shopName" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
             Shop Name <span class="text-rose-400">*</span>
           </label>
-          <input type="text" id="shopName" required placeholder="e.g. Blue Tokai Roasters"
+          <input type="text" id="shopName" required placeholder="e.g. Vinay Artisan Coffee"
             oninput="autoGenerateSlug(this.value)"
             class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
         </div>
@@ -123,7 +132,7 @@
           </label>
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs font-mono">/c/</span>
-            <input type="text" id="shopSlug" required placeholder="blue-tokai"
+            <input type="text" id="shopSlug" required placeholder="vinay-coffee"
               class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl pl-8 pr-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-mono">
           </div>
         </div>
@@ -161,38 +170,75 @@
         </label>
         <select id="cooldownHours"
           class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer">
+          <option value="1" style="background:#0b1120">1 Hour (Testing & High Traffic)</option>
           <option value="4" style="background:#0b1120">4 Hours (Quick Repeat)</option>
-          <option value="12" selected style="background:#0b1120">12 Hours (Twice Daily Max)</option>
+          <option value="7" selected style="background:#0b1120">7 Hours (Recommended)</option>
+          <option value="12" style="background:#0b1120">12 Hours (Twice Daily Max)</option>
           <option value="24" style="background:#0b1120">24 Hours (Once Per Day)</option>
         </select>
-        <p class="text-[11px] text-slate-500 mt-1">Prevents customers from scanning the counter screen multiple times during the same visit.</p>
       </div>
 
-      <!-- Launch with Google Button -->
-      <div class="pt-2 space-y-3">
-        <!-- GIS Container -->
-        <div id="gsiButtonWrapper" class="hidden w-full flex justify-center mb-1">
-          <div id="gsiButtonContainer"></div>
+      <!-- Owner Account Credentials -->
+      <div class="pt-2 border-t border-slate-800 space-y-4">
+        <div class="text-xs font-extrabold uppercase tracking-wider text-indigo-400">
+          Owner Credentials
         </div>
 
-        <button type="button" id="launchGoogleBtn" onclick="triggerGoogleSignUp()"
-          class="w-full btn-google font-extrabold py-4 px-4 rounded-xl text-sm flex items-center justify-center gap-3 shadow-lg">
-          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-          </svg>
-          <span id="launchGoogleBtnText">Continue with Google to Launch Shop &rarr;</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="ownerEmail" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Email Address <span class="text-rose-400">*</span>
+            </label>
+            <input type="email" id="ownerEmail" required placeholder="e.g. owner@mycafe.com"
+              class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+          </div>
+
+          <div>
+            <label for="ownerPassword" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              Password <span class="text-rose-400">*</span>
+            </label>
+            <input type="password" id="ownerPassword" required placeholder="Min 6 characters" minlength="6"
+              class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+          </div>
+        </div>
+      </div>
+
+      <!-- Launch Primary Button -->
+      <div class="pt-2 space-y-3">
+        <button type="submit" id="launchSubmitBtn"
+          class="w-full btn-launch font-extrabold py-4 px-4 rounded-xl text-sm sm:text-base text-white flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+          <span id="launchSubmitBtnText">🚀 Create Shop & Enter Cockpit</span>
+          <span>&rarr;</span>
         </button>
 
-        <button type="button" id="launchAppleBtn" onclick="handleAppleSignUp()"
-          class="w-full btn-apple font-bold py-3.5 px-4 rounded-xl text-sm flex items-center justify-center gap-3">
-          <svg class="w-5 h-5 fill-current shrink-0" viewBox="0 0 24 24">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.85.94-2.93-.91.04-2.03.61-2.69 1.39-.58.67-1.09 1.76-.95 2.81 1.02.08 2.06-.51 2.7-1.27z"/>
-          </svg>
-          <span>Continue with Apple</span>
-        </button>
+        <!-- Divider -->
+        <div class="relative flex items-center justify-center my-1">
+          <div class="border-t border-slate-800 w-full"></div>
+          <span class="bg-[#0b1120] px-3 text-[10px] uppercase font-bold text-slate-500 tracking-wider shrink-0">Or enroll with social</span>
+          <div class="border-t border-slate-800 w-full"></div>
+        </div>
+
+        <!-- Social Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button type="button" id="launchGoogleBtn" onclick="triggerGoogleSignUp()"
+            class="btn-google font-bold py-3 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md">
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Google Sign-Up</span>
+          </button>
+
+          <button type="button" id="launchAppleBtn" onclick="handleAppleSignUp()"
+            class="btn-apple font-bold py-3 px-3 rounded-xl text-xs flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.85.94-2.93-.91.04-2.03.61-2.69 1.39-.58.67-1.09 1.76-.95 2.81 1.02.08 2.06-.51 2.7-1.27z"/>
+            </svg>
+            <span>Apple Sign-Up</span>
+          </button>
+        </div>
       </div>
 
     </form>
@@ -204,11 +250,12 @@
   </main>
 
   <footer class="max-w-xl w-full mx-auto pb-4 text-center text-xs text-slate-500 relative z-10">
-    MarkU SaaS Platform · Free Google OAuth Authentication
+    MarkU SaaS Platform · Professional Multi-Tenant Loyalty Engine
   </footer>
 
   <script>
     let googleClientId = null;
+    let supabaseClient = null;
 
     function autoGenerateSlug(name) {
       const slugInput = document.getElementById('shopSlug');
@@ -239,92 +286,87 @@
       infoBanner.classList.remove('hidden');
     }
 
-    let supabaseClient = null;
-
     window.addEventListener('DOMContentLoaded', async () => {
-      // 1. Fetch Auth Config
       try {
         const confRes = await fetch('/api/config/auth');
         const conf = await confRes.json();
-        
         if (conf.url && conf.anonKey && window.supabase) {
           supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
-
-          // Check if returning from OAuth redirect with pending registration
-          const { data: sessionData } = await supabaseClient.auth.getSession();
-          const pendingRaw = sessionStorage.getItem('pending_shop_reg');
-          if (sessionData && sessionData.session && sessionData.session.access_token && pendingRaw) {
-            try {
-              const pendingData = JSON.parse(pendingRaw);
-              sessionStorage.removeItem('pending_shop_reg');
-              await submitRegistration({ ...pendingData, supabaseToken: sessionData.session.access_token });
-              return;
-            } catch {}
-          }
         }
-
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
-          initGoogleClient(conf.googleClientId);
         }
       } catch {}
     });
 
-    function initGoogleClient(clientId) {
-      if (!window.google || !window.google.accounts) return;
-
-      try {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleCredentialResponse,
-          auto_select: true
-        });
-
-        const wrapper = document.getElementById('gsiButtonWrapper');
-        const container = document.getElementById('gsiButtonContainer');
-        if (wrapper && container) {
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            width: 320,
-            text: 'signup_with'
-          });
-          wrapper.classList.remove('hidden');
-        }
-      } catch (err) {
-        console.warn('GIS Init notice:', err.message);
-      }
-    }
-
-    function getShopFormData() {
+    async function handleFormSubmit(event) {
+      event.preventDefault();
       const shopName = document.getElementById('shopName').value.trim();
       const slug = document.getElementById('shopSlug').value.trim();
       const stampsTarget = parseInt(document.getElementById('stampsTarget').value) || 10;
       const rewardDescription = document.getElementById('rewardDescription').value.trim();
-      const cooldownHours = parseFloat(document.getElementById('cooldownHours').value) || 12;
+      const cooldownHours = parseFloat(document.getElementById('cooldownHours').value) || 7;
+      const email = document.getElementById('ownerEmail').value.trim();
+      const password = document.getElementById('ownerPassword').value.trim();
 
-      if (!shopName) {
-        showError('Please enter your shop name.');
-        document.getElementById('shopName').focus();
-        return null;
+      const submitBtn = document.getElementById('launchSubmitBtn');
+      const submitText = document.getElementById('launchSubmitBtnText');
+
+      if (!shopName || !slug || !email || !password) {
+        showError('Please fill in all required fields.');
+        return;
       }
-      if (!slug) {
-        showError('Please specify a kiosk URL slug.');
-        document.getElementById('shopSlug').focus();
-        return null;
+
+      submitBtn.disabled = true;
+      submitText.textContent = 'Setting up your shop...';
+      showInfo('Registering shop in database...');
+
+      try {
+        const res = await fetch('/api/owner/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            shopName,
+            slug,
+            stampsTarget,
+            rewardDescription,
+            cooldownHours,
+            email,
+            password
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.token) {
+          localStorage.setItem('owner_token', data.token);
+          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
+          showInfo('Shop created successfully! Launching Cockpit...');
+          setTimeout(() => {
+            window.location.href = data.redirect || '/dashboard';
+          }, 400);
+        } else {
+          showError(data.message || 'Registration failed. Please try a different slug or email.');
+          submitBtn.disabled = false;
+          submitText.textContent = '🚀 Create Shop & Enter Cockpit';
+        }
+      } catch (err) {
+        showError('Network error during registration. Please try again.');
+        submitBtn.disabled = false;
+        submitText.textContent = '🚀 Create Shop & Enter Cockpit';
       }
-      return { shopName, slug, stampsTarget, rewardDescription, cooldownHours };
     }
 
     async function triggerGoogleSignUp() {
-      const formData = getShopFormData();
-      if (!formData) return;
+      const shopName = document.getElementById('shopName').value.trim();
+      const slug = document.getElementById('shopSlug').value.trim();
+      if (!shopName || !slug) {
+        showError('Please enter a shop name and kiosk slug first.');
+        return;
+      }
 
-      // Primary: Supabase OAuth
       if (supabaseClient) {
-        sessionStorage.setItem('pending_shop_reg', JSON.stringify(formData));
-        showInfo('Redirecting to Google secure login...');
+        showInfo('Connecting to Google...');
         try {
           const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
@@ -332,101 +374,17 @@
               redirectTo: window.location.origin + '/owner/register.html'
             }
           });
-          if (error) {
-            showError('Google OAuth error: ' + error.message);
-            if (window.google && window.google.accounts && googleClientId) {
-              window.google.accounts.id.prompt();
-            }
-          }
-          return;
+          if (error) showError('Google OAuth error: ' + error.message + '. Tip: Use the Password Form above.');
         } catch (err) {
-          showError('Failed to initialize Google OAuth: ' + err.message);
-          return;
+          showError('Google OAuth error: ' + err.message + '. Tip: Use the Password Form above.');
         }
+      } else {
+        showError('Google OAuth is not configured on this host. Please use the Password Form above.');
       }
-
-      // Secondary: Google GIS
-      if (window.google && window.google.accounts && googleClientId) {
-        window.google.accounts.id.prompt();
-        return;
-      }
-
-      showError('Google OAuth is not configured on this server. Set GOOGLE_CLIENT_ID in your .env file or enable Google in Supabase Auth.');
-    }
-
-    async function handleGoogleCredentialResponse(response) {
-      const formData = getShopFormData();
-      if (!formData) return;
-      if (!response || !response.credential) {
-        showError('No Google credential returned. Please try again.');
-        return;
-      }
-      await submitRegistration({ ...formData, credential: response.credential });
     }
 
     async function handleAppleSignUp() {
-      const formData = getShopFormData();
-      if (!formData) return;
-      if (supabaseClient) {
-        sessionStorage.setItem('pending_shop_reg', JSON.stringify(formData));
-        showInfo('Redirecting to Apple secure login...');
-        try {
-          const { error } = await supabaseClient.auth.signInWithOAuth({
-            provider: 'apple',
-            options: {
-              redirectTo: window.location.origin + '/owner/register.html'
-            }
-          });
-          if (error) showError('Apple OAuth error: ' + error.message);
-        } catch (err) {
-          showError('Failed to initialize Apple OAuth: ' + err.message);
-        }
-      } else {
-        showError('Apple OAuth requires Supabase configuration.');
-      }
-    }
-
-    function handleFormSubmit(e) {
-      e.preventDefault();
-      triggerGoogleSignUp();
-    }
-
-    async function submitRegistration(payload) {
-      showInfo('Provisioning your shop workspace...');
-      const btn = document.getElementById('launchGoogleBtn');
-      const btnText = document.getElementById('launchGoogleBtnText');
-      if (btn) btn.disabled = true;
-      if (btnText) btnText.textContent = 'Launching Cockpit...';
-
-      try {
-        const res = await fetch('/api/auth/google/owner', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          if (data.token) localStorage.setItem('owner_token', data.token);
-          if (data.ownerToken) localStorage.setItem('owner_jwt', data.ownerToken);
-          if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
-          if (data.user) localStorage.setItem('owner_user', JSON.stringify(data.user));
-
-          showInfo('Shop workspace ready! Redirecting to Cockpit...');
-          setTimeout(() => {
-            window.location.href = data.redirect || '/dashboard';
-          }, 400);
-        } else {
-          showError(data.message || 'Could not launch shop. Please check the details and try again.');
-          if (btn) btn.disabled = false;
-          if (btnText) btnText.textContent = 'Continue with Google to Launch Shop →';
-        }
-      } catch (err) {
-        showError('Network error while launching shop. Please try again.');
-        if (btn) btn.disabled = false;
-        if (btnText) btnText.textContent = 'Continue with Google to Launch Shop →';
-      }
+      showError('Apple Sign-In is available via the Password Form or when Apple OAuth is configured in Supabase.');
     }
   </script>
 </body>
