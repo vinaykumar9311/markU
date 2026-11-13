@@ -8,6 +8,7 @@ process.on('unhandledRejection', (reason) => {
 });
 const express = require('express');
 const crypto = require('crypto');
+const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode');
@@ -32,6 +33,68 @@ function safeEqual(a, b) {
   const bb = Buffer.from(String(b));
   if (ba.length !== bb.length) return false;
   return crypto.timingSafeEqual(ba, bb);
+}
+
+const DISPOSABLE_OR_FAKE_EMAIL_DOMAINS = new Set([
+  'example.com', 'example.org', 'example.net', 'test.com', 'fake.com', 'asdf.com',
+  'localhost', 'invalid.com', 'mailinator.com', 'tempmail.com', 'temp-mail.org',
+  'guerrillamail.com', 'guerrillamail.org', '10minutemail.com', 'yopmail.com',
+  'trashmail.com', 'sharklasers.com', 'throwawaymail.com', 'dispostable.com',
+  'getnada.com', 'maildrop.cc', 'burnermail.io', 'mohmal.com', 'fakeinbox.com',
+  'mintemail.com', 'spamgourmet.com', 'mytemp.email', 'emailondeck.com'
+]);
+
+function isValidEmailSyntax(email) {
+  if (!email || typeof email !== 'string') return false;
+  const clean = email.trim().toLowerCase();
+  if (clean.length < 5 || clean.length > 254) return false;
+  if (clean.includes('..')) return false;
+  const parts = clean.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length > 64 || !domain || domain.length > 253) return false;
+  if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(local)) return false;
+  if (!/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i.test(domain)) return false;
+  const tld = domain.split('.').pop();
+  if (!tld || tld.length < 2 || !/^[a-z]+$/i.test(tld)) return false;
+  return true;
+}
+
+async function validateGenuineEmail(email) {
+  if (!isValidEmailSyntax(email)) {
+    return { valid: false, reason: 'Please enter a valid email address.' };
+  }
+  const clean = email.trim().toLowerCase();
+  const domain = clean.split('@')[1];
+  if (
+    DISPOSABLE_OR_FAKE_EMAIL_DOMAINS.has(domain) ||
+    domain.endsWith('.local') ||
+    domain.endsWith('.test') ||
+    domain.endsWith('.invalid') ||
+    domain.endsWith('.example')
+  ) {
+    return { valid: false, reason: 'Disposable or placeholder email addresses are not allowed. Please use a genuine email address.' };
+  }
+
+  try {
+    const mxRecords = await Promise.race([
+      dns.promises.resolveMx(domain),
+      new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('DNS timeout'), { code: 'ETIMEOUT' })), 3000))
+    ]);
+    if (!Array.isArray(mxRecords) || mxRecords.length === 0) {
+      return { valid: false, reason: `The email domain "${domain}" cannot receive emails. Please enter a genuine email address.` };
+    }
+  } catch (err) {
+    if (err && (err.code === 'ENOTFOUND' || err.code === 'ENODATA' || err.code === 'ENOTIMP' || err.code === 'ESERVFAIL')) {
+      return { valid: false, reason: `The email domain "${domain}" does not exist. Please enter a genuine email address.` };
+    }
+    if (err && err.code === 'ETIMEOUT') {
+      return { valid: false, reason: `Could not verify mail server for "${domain}". Please use a genuine email address or sign in with Google.` };
+    }
+    return { valid: false, reason: `The email domain "${domain}" could not be verified.` };
+  }
+
+  return { valid: true, email: clean };
 }
 
 // Discover Wi-Fi / LAN IP
@@ -1353,14 +1416,21 @@ app.post('/api/owner/register', async (req, res) => {
   }
 
   if (ownerEmail) {
-    // verified via Supabase Google / Email
+    // verified via Supabase Google / Email token
   } else if (verifiedPhone) {
     const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
     ownerEmail = email ? email.trim().toLowerCase() : `${cleanDigits}@owner.marku.local`;
   } else if (email && email.trim() && password && password.trim()) {
-    ownerEmail = email.trim().toLowerCase();
+    if (password.trim().length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
+    }
+    const emailCheck = await validateGenuineEmail(email);
+    if (!emailCheck.valid) {
+      return res.status(400).json({ success: false, message: emailCheck.reason });
+    }
+    ownerEmail = emailCheck.email;
   } else {
-    return res.status(400).json({ success: false, message: 'Google authentication or email and password required.' });
+    return res.status(400).json({ success: false, message: 'Google authentication or genuine email and password required.' });
   }
 
   const db = loadLocalDb();
@@ -1410,8 +1480,9 @@ app.post('/api/owner/register', async (req, res) => {
       // 1. Create Supabase Auth User
       let userId = null;
       let sessionToken = null;
+      let isEmailConfirmed = Boolean(authToken || verifiedPhone);
 
-      if (supabase.auth.admin) {
+      if (isEmailConfirmed && supabase.auth.admin) {
         try {
           const { data: adminData } = await supabase.auth.admin.createUser({
             email: ownerEmail,
@@ -1423,32 +1494,54 @@ app.post('/api/owner/register', async (req, res) => {
       }
 
       if (!userId && !ownerEmail.endsWith('@owner.marku.local')) {
-        try {
-          const { data: signData, error: signErr } = await supabase.auth.signUp({
-            email: ownerEmail,
-            password: ownerPassword
+        const redirectBase = `${req.protocol}://${req.get('host')}`;
+        const { data: signData, error: signErr } = await supabase.auth.signUp({
+          email: ownerEmail,
+          password: ownerPassword,
+          options: { emailRedirectTo: `${redirectBase}/owner/login.html` }
+        });
+        if (signErr) {
+          const msg = (signErr.message || '').toLowerCase();
+          if (msg.includes('already registered') || msg.includes('already exists')) {
+            return res.status(409).json({
+              success: false,
+              message: 'This email is already registered. Please sign in or check your inbox for the verification link.'
+            });
+          }
+          if (msg.includes('rate limit')) {
+            return res.status(429).json({
+              success: false,
+              message: 'Email verification rate limit reached. Please wait a moment or continue with Google Sign-Up.'
+            });
+          }
+          return res.status(400).json({
+            success: false,
+            message: signErr.message || 'Could not verify this email address. Please use a genuine email or continue with Google.'
           });
-          if (signErr) {
-            if (signErr.message.includes('rate limit')) {
-              console.warn('[Register] Supabase email rate limit reached. Proceeding with secure application auth.');
-              userId = crypto.randomUUID();
-            } else if (!signErr.message.includes('already registered')) {
-              userId = crypto.randomUUID();
-            }
+        }
+        if (signData && signData.user) {
+          userId = signData.user.id;
+          if (signData.session) {
+            sessionToken = signData.session.access_token;
+            isEmailConfirmed = true;
+          } else if (signData.user.email_confirmed_at) {
+            isEmailConfirmed = true;
           }
-          if (signData && signData.user) {
-            userId = signData.user.id;
-            if (signData.session) sessionToken = signData.session.access_token;
-          }
-        } catch (e) {}
+        }
       }
 
-      if (!userId) {
+      if (!userId && isEmailConfirmed) {
         userId = crypto.randomUUID();
       }
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Unable to create account with this email. Please use a genuine email or continue with Google.'
+        });
+      }
 
-      // Generate signed app token so owner can log in immediately
-      const token = sessionToken || signOwnerToken(userId, ownerEmail, verifiedPhone);
+      // Generate signed app token only when email is verified/confirmed
+      const token = isEmailConfirmed ? (sessionToken || signOwnerToken(userId, ownerEmail, verifiedPhone)) : null;
 
       // Upsert into Supabase owners table for persistent lookup
       try {
@@ -1495,6 +1588,7 @@ app.post('/api/owner/register', async (req, res) => {
         id: userId,
         phone: verifiedPhone || null,
         email: ownerEmail,
+        emailVerified: isEmailConfirmed,
         passwordHash: hashPassword(ownerPassword),
         shopSlug: cleanSlug,
         createdAt: Date.now()
@@ -1514,6 +1608,15 @@ app.post('/api/owner/register', async (req, res) => {
         secretKey: shop.secret_key
       };
       saveLocalDb(db);
+
+      if (!isEmailConfirmed) {
+        return res.status(202).json({
+          success: true,
+          requiresEmailVerification: true,
+          message: `Verification link sent to ${ownerEmail}. Please open your inbox and verify your email before signing in.`,
+          shop: { id: shop.id, name: shop.name, slug: shop.slug, rewardDescription: shop.reward_description, stampsTarget: targetStamps }
+        });
+      }
 
       return res.json({
         success: true,
@@ -2379,6 +2482,9 @@ app.post('/api/owner/login', async (req, res) => {
   if (loginIdentifier && password) {
     const cleanPass = String(password).trim();
     const isEmail = loginIdentifier.includes('@');
+    if (isEmail && !isValidEmailSyntax(loginIdentifier)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
     const cleanEmail = isEmail ? loginIdentifier.toLowerCase() : '';
     const cleanPhone = !isEmail ? normalizePhoneNumber(loginIdentifier) : '';
     const cleanDigits = cleanPhone ? cleanPhone.replace(/[^0-9]/g, '') : '';
@@ -2418,6 +2524,39 @@ app.post('/api/owner/login', async (req, res) => {
     }
 
     if (owner && owner.passwordHash && verifyPassword(cleanPass, owner.passwordHash)) {
+      if (isEmail && owner.emailVerified === false) {
+        if (supabase) {
+          try {
+            const { data: sessionData, error: authErr } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: cleanPass
+            });
+            if (authErr || !sessionData?.user?.email_confirmed_at) {
+              return res.status(403).json({
+                success: false,
+                requiresEmailVerification: true,
+                message: 'Email not verified yet. Please check your inbox and click the verification link, or sign in with Google.'
+              });
+            }
+            owner.emailVerified = true;
+            db.owners[cleanEmail] = owner;
+            saveLocalDb(db);
+          } catch {
+            return res.status(403).json({
+              success: false,
+              requiresEmailVerification: true,
+              message: 'Email not verified yet. Please check your inbox and click the verification link, or sign in with Google.'
+            });
+          }
+        } else {
+          return res.status(403).json({
+            success: false,
+            requiresEmailVerification: true,
+            message: 'Email not verified yet. Please check your inbox and verify your email.'
+          });
+        }
+      }
+
       let shop = null;
       if (owner.shopSlug && db.shops[owner.shopSlug]) {
         shop = db.shops[owner.shopSlug];
@@ -2466,7 +2605,21 @@ app.post('/api/owner/login', async (req, res) => {
           email: cleanEmail,
           password: cleanPass
         });
+        if (authErr && authErr.message && authErr.message.toLowerCase().includes('not confirmed')) {
+          return res.status(403).json({
+            success: false,
+            requiresEmailVerification: true,
+            message: 'Email not verified yet. Please check your inbox and click the verification link, or sign in with Google.'
+          });
+        }
         if (!authErr && sessionData && sessionData.user) {
+          if (!sessionData.user.email_confirmed_at) {
+            return res.status(403).json({
+              success: false,
+              requiresEmailVerification: true,
+              message: 'Email not verified yet. Please check your inbox and click the verification link, or sign in with Google.'
+            });
+          }
           const userId = sessionData.user.id;
           let { data: shop } = await supabase.from('shops').select('*').eq('owner_id', userId).maybeSingle();
           if (!shop && db.shops) {
@@ -4194,6 +4347,8 @@ module.exports = {
   signCustomerSessionToken,
   verifyCustomerSessionToken,
   verifyGoogleToken,
+  validateGenuineEmail,
+  isValidEmailSyntax,
   getOwnerIdFromReq,
   setAuthCookies,
   setCustomerCookie,

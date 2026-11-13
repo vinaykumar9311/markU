@@ -121,6 +121,18 @@
       </div>
     </div>
 
+    <!-- Auth Method Choice (Optional: Email/Password or Google) -->
+    <div class="grid grid-cols-2 gap-1.5 bg-[#0b1120] border border-slate-800 p-1 rounded-xl" role="tablist">
+      <button type="button" id="loginTabEmail" onclick="selectLoginMethod('email')"
+        class="py-2 px-3 rounded-lg text-xs font-bold bg-indigo-600 text-white transition-all cursor-pointer">
+        Email &amp; Password
+      </button>
+      <button type="button" id="loginTabGoogle" onclick="selectLoginMethod('google')"
+        class="py-2 px-3 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all cursor-pointer">
+        Google Sign-In
+      </button>
+    </div>
+
     <!-- Password Sign In Form -->
     <form id="loginForm" onsubmit="handlePasswordLogin(event)" class="space-y-3.5">
       <div>
@@ -155,7 +167,7 @@
     </div>
 
     <!-- Primary OAuth Buttons -->
-    <div class="space-y-2.5">
+    <div id="oauthSection" class="space-y-2.5">
       <!-- GIS Button Container -->
       <div id="gsiButtonWrapper" class="hidden w-full flex justify-center mb-1">
         <div id="gsiButtonContainer"></div>
@@ -236,6 +248,24 @@
     }
 
     // Password Sign In Handler
+    function selectLoginMethod(method) {
+      const form = document.getElementById('loginForm');
+      const oauth = document.getElementById('oauthSection');
+      const tabEmail = document.getElementById('loginTabEmail');
+      const tabGoogle = document.getElementById('loginTabGoogle');
+      if (method === 'google') {
+        if (form) form.classList.add('hidden');
+        if (oauth) oauth.classList.remove('hidden');
+        tabGoogle.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-indigo-600 text-white transition-all cursor-pointer';
+        tabEmail.className = 'py-2 px-3 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all cursor-pointer';
+      } else {
+        if (form) form.classList.remove('hidden');
+        if (oauth) oauth.classList.remove('hidden');
+        tabEmail.className = 'py-2 px-3 rounded-lg text-xs font-bold bg-indigo-600 text-white transition-all cursor-pointer';
+        tabGoogle.className = 'py-2 px-3 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all cursor-pointer';
+      }
+    }
+
     async function handlePasswordLogin(event) {
       event.preventDefault();
       const identifier = document.getElementById('loginIdentifier').value.trim();

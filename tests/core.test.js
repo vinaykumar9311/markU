@@ -16,6 +16,8 @@ const {
   signCustomerSessionToken,
   verifyCustomerSessionToken,
   verifyGoogleToken,
+  validateGenuineEmail,
+  isValidEmailSyntax,
   getOwnerIdFromReq,
   signCustomerOtpToken,
   verifyCustomerOtpToken,
@@ -306,4 +308,69 @@ test('verifyGoogleToken rejects missing email or unverified email payloads', asy
   })).toString('base64url');
   const unverifiedRes = await verifyGoogleToken(`h.${unverifiedPayload}.s`);
   assert.equal(unverifiedRes.success, false);
+});
+
+test('validateGenuineEmail rejects malformed, disposable, and non-existent domains', async () => {
+  assert.equal(isValidEmailSyntax('not-an-email'), false);
+  assert.equal(isValidEmailSyntax('bad..dot@gmail.com'), false);
+  assert.equal(isValidEmailSyntax('valid.owner@gmail.com'), true);
+
+  const disposable = await validateGenuineEmail('tempuser@mailinator.com');
+  assert.equal(disposable.valid, false);
+
+  const placeholder = await validateGenuineEmail('someone@example.com');
+  assert.equal(placeholder.valid, false);
+
+  const fakeDomain = await validateGenuineEmail('nobody@nonexistent-domain-xyz-99999.com');
+  assert.equal(fakeDomain.valid, false);
+});
+
+test('POST /api/owner/register and /api/owner/login reject fake or non-existent emails', async () => {
+  const { app } = require('../server');
+  const srv = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const baseUrl = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const regDisposable = await fetch(`${baseUrl}/api/owner/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopName: 'Fake Cafe',
+        slug: 'fake-cafe-' + Date.now(),
+        email: 'bot@mailinator.com',
+        password: 'password123'
+      })
+    });
+    assert.equal(regDisposable.status, 400);
+    const regDispJson = await regDisposable.json();
+    assert.equal(regDispJson.success, false);
+
+    const regNonExistent = await fetch(`${baseUrl}/api/owner/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopName: 'Ghost Cafe',
+        slug: 'ghost-cafe-' + Date.now(),
+        email: 'ghost@nonexistent-domain-xyz-99999.com',
+        password: 'password123'
+      })
+    });
+    assert.equal(regNonExistent.status, 400);
+    const regGhostJson = await regNonExistent.json();
+    assert.equal(regGhostJson.success, false);
+    assert.equal(regGhostJson.token, undefined);
+
+    const loginNonExistent = await fetch(`${baseUrl}/api/owner/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'never-registered-99999@gmail.com',
+        password: 'password123'
+      })
+    });
+    assert.equal(loginNonExistent.status, 401);
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
 });

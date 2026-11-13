@@ -178,28 +178,43 @@
         </select>
       </div>
 
-      <!-- Owner Account Credentials -->
+      <!-- Owner Account Auth Method Choice -->
       <div class="pt-2 border-t border-slate-800 space-y-4">
-        <div class="text-xs font-extrabold uppercase tracking-wider text-indigo-400">
-          Owner Credentials
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="text-xs font-extrabold uppercase tracking-wider text-indigo-400">
+            Choose Sign-Up Method
+          </div>
+          <div class="inline-flex rounded-xl bg-[#0b1120] border border-slate-800 p-1 gap-1" role="tablist">
+            <button type="button" id="regTabEmail" onclick="selectRegisterMethod('email')"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-all cursor-pointer">
+              Email &amp; Password
+            </button>
+            <button type="button" id="regTabGoogle" onclick="selectRegisterMethod('google')"
+              class="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-all cursor-pointer">
+              Google (Instant)
+            </button>
+          </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="ownerEmail" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Email Address <span class="text-rose-400">*</span>
-            </label>
-            <input type="email" id="ownerEmail" required placeholder="e.g. owner@mycafe.com"
-              class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
-          </div>
+        <div id="emailCredentialsSection" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="ownerEmail" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+                Genuine Email Address <span class="text-rose-400">*</span>
+              </label>
+              <input type="email" id="ownerEmail" required placeholder="e.g. owner@gmail.com"
+                class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+            </div>
 
-          <div>
-            <label for="ownerPassword" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Password <span class="text-rose-400">*</span>
-            </label>
-            <input type="password" id="ownerPassword" required placeholder="Min 6 characters" minlength="6"
-              class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+            <div>
+              <label for="ownerPassword" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+                Password <span class="text-rose-400">*</span>
+              </label>
+              <input type="password" id="ownerPassword" required placeholder="Min 6 characters" minlength="6"
+                class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+            </div>
           </div>
+          <p class="text-[11px] text-slate-400">We verify email domains and send a confirmation link to your inbox. Fake or non-existent emails are rejected.</p>
         </div>
       </div>
 
@@ -404,6 +419,31 @@
       }
     }
 
+    function selectRegisterMethod(method) {
+      const emailSec = document.getElementById('emailCredentialsSection');
+      const submitBtn = document.getElementById('launchSubmitBtn');
+      const tabEmail = document.getElementById('regTabEmail');
+      const tabGoogle = document.getElementById('regTabGoogle');
+      const emailInput = document.getElementById('ownerEmail');
+      const passInput = document.getElementById('ownerPassword');
+
+      if (method === 'google') {
+        emailSec.classList.add('hidden');
+        submitBtn.classList.add('hidden');
+        emailInput.required = false;
+        passInput.required = false;
+        tabGoogle.className = 'px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-all cursor-pointer';
+        tabEmail.className = 'px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-all cursor-pointer';
+      } else {
+        emailSec.classList.remove('hidden');
+        submitBtn.classList.remove('hidden');
+        emailInput.required = true;
+        passInput.required = true;
+        tabEmail.className = 'px-3 py-1.5 rounded-lg text-[11px] font-bold bg-indigo-600 text-white transition-all cursor-pointer';
+        tabGoogle.className = 'px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-white transition-all cursor-pointer';
+      }
+    }
+
     async function handleFormSubmit(event) {
       event.preventDefault();
       const shopName = document.getElementById('shopName').value.trim();
@@ -443,7 +483,11 @@
         });
 
         const data = await res.json();
-        if (data.success && data.token) {
+        if (data.success && data.requiresEmailVerification) {
+          showInfo(data.message || 'Verification link sent! Please check your inbox and verify your email before signing in.');
+          submitBtn.disabled = false;
+          submitText.textContent = 'Verification Email Sent — Check Inbox';
+        } else if (data.success && data.token) {
           localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
           showInfo('Shop created successfully! Launching Cockpit...');
