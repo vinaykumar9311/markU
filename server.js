@@ -116,6 +116,9 @@ function loadLocalDb() {
 }
 
 function saveLocalDb(data) {
+  if (data && Array.isArray(data.history) && data.history.length > 500) {
+    data.history = data.history.slice(0, 500);
+  }
   memoryDb = data;
   try {
     fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(data, null, 2));
@@ -195,7 +198,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const limiterOpts = { standardHeaders: true, legacyHeaders: false };
 app.use('/api', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 300, message: { success: false, message: 'Too many requests. Slow down.' } }));
-app.use(['/api/owner/login', '/api/owner/register', '/api/auth/google/owner', '/api/auth/google/customer', '/api/customer/verify-otp', '/api/customer/send-otp'],
+app.use(['/api/owner/login', '/api/owner/demo-login', '/api/owner/register', '/api/auth/google/owner', '/api/auth/google/customer', '/api/customer/verify-otp', '/api/customer/send-otp'],
   rateLimit({ ...limiterOpts, windowMs: 15 * 60 * 1000, limit: 60, message: { success: false, message: 'Too many attempts. Try again in 15 minutes.' } }));
 app.use('/api/claim-stamp', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 60, message: { success: false, message: 'Too many scan attempts. Please wait a minute.' } }));
 
@@ -217,19 +220,21 @@ app.get('/ready', (req, res) => {
 app.get('/api/config/auth', (req, res) => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
   const url = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
-  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const demoEnabled = !IS_PROD || process.env.ENABLE_DEMO_LOGIN === 'true';
   return res.json({
     googleClientId,
     isGoogleConfigured: !!googleClientId,
     url,
-    anonKey
+    anonKey,
+    demoEnabled
   });
 });
 
 // Endpoint providing Supabase Client Config to frontend (login, register, scan, card)
 app.get('/api/config/supabase', (req, res) => {
   const url = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
-  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const anonKey = process.env.PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
   const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
   return res.json({
     isConfigured: !!(url && anonKey),
@@ -2391,47 +2396,9 @@ app.post('/api/owner/login', async (req, res) => {
     }
 
     if (owner && !owner.passwordHash) {
-      // First-time password setting for accounts enrolled via OAuth/Phone
-      owner.passwordHash = hashPassword(cleanPass);
-      db.owners[cleanEmail || cleanPhone] = owner;
-      saveLocalDb(db);
-      if (supabase) {
-        try {
-          await supabase.from('owners').upsert({
-            id: owner.id,
-            email: owner.email,
-            phone: owner.phone,
-            password_hash: owner.passwordHash,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-        } catch (e) {}
-      }
-
-      let shop = null;
-      if (owner.shopSlug && db.shops[owner.shopSlug]) {
-        shop = db.shops[owner.shopSlug];
-      }
-      if (!shop && supabase) {
-        try {
-          const { data: s } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
-          if (s) shop = s;
-        } catch (e) {}
-      }
-      if (!shop) {
-        shop = Object.values(db.shops).find(s => s.ownerId === owner.id || s.owner_id === owner.id);
-      }
-
-      return res.json({
-        success: true,
-        message: 'Password created and signed in successfully!',
-        token: signOwnerToken(owner.id, owner.email || `${cleanDigits}@owner.marku.local`, owner.phone || cleanPhone),
-        shop: shop ? {
-          id: shop.id,
-          name: shop.name,
-          slug: shop.slug,
-          rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
-          stampsTarget: shop.stamps_target || shop.stampsTarget || 10
-        } : null
+      return res.status(400).json({
+        success: false,
+        message: 'No password is set for this OAuth/OTP account. Please sign in with Google/Mobile OTP, or use Forgot Password to set a password.'
       });
     }
 
@@ -2478,58 +2445,59 @@ app.post('/api/owner/login', async (req, res) => {
 });
 
 // --------------------------------------------------------------------
-// 1-CLICK INSTANT DEMO COCKPIT ACCESS (FOR LIVE TEST DRIVES)
+// 1-CLICK INSTANT DEMO COCKPIT ACCESS (DEV / SANDBOX ONLY)
 // --------------------------------------------------------------------
 app.post('/api/owner/demo-login', async (req, res) => {
+  if (IS_PROD && process.env.ENABLE_DEMO_LOGIN !== 'true') {
+    return res.status(403).json({
+      success: false,
+      message: 'Demo login is disabled in production. Please sign in with your merchant credentials.'
+    });
+  }
+
   const db = loadLocalDb();
-  let shop = null;
-
-  if (supabase) {
-    try {
-      const { data: s } = await supabase.from('shops').select('*').eq('slug', 'vinay-coffee-house-16b3').maybeSingle();
-      if (s) shop = s;
-      if (!shop) {
-        const { data: anyShop } = await supabase.from('shops').select('*').limit(1).maybeSingle();
-        if (anyShop) shop = anyShop;
-      }
-    } catch (e) {}
-  }
-
-  if (!shop) {
-    shop = Object.values(db.shops).find(s => s.slug === 'vinay-coffee-house-16b3') || Object.values(db.shops)[0] || {
-      id: 'demo-shop-uuid',
-      owner_id: 'bdac4f66-10c6-4d29-a4d3-3e5e846c4e25',
-      name: 'Vinay Coffee Hous',
-      slug: 'vinay-coffee-house-16b3',
-      reward_description: '1 Free Specialty Coffee / Reward',
+  const demoOwnerId = '00000000-0000-4000-8000-00000000d3m0';
+  const demoSlug = 'demo-sandbox';
+  if (!db.shops[demoSlug]) {
+    db.shops[demoSlug] = {
+      id: '00000000-0000-4000-8000-000000005409',
+      ownerId: demoOwnerId,
+      owner_id: demoOwnerId,
+      name: 'MarkU Demo Roasters',
+      slug: demoSlug,
+      rewardDescription: '1 Free Pour-Over Coffee',
+      reward_description: '1 Free Pour-Over Coffee',
+      stampsTarget: 10,
       stamps_target: 10,
-      cooldown_hours: 1
+      cooldownHours: 1,
+      cooldown_hours: 1,
+      secretKey: crypto.createHmac('sha256', GLOBAL_SECRET).update(demoSlug).digest('hex'),
+      subscriptionPlan: 'trial',
+      subscriptionStatus: 'active'
     };
+    saveLocalDb(db);
   }
-
-  const ownerId = shop.owner_id || shop.ownerId || 'bdac4f66-10c6-4d29-a4d3-3e5e846c4e25';
-  const ownerEmail = 'vinaykumarvk3632201@gmail.com';
-  const ownerPhone = '+919311594509';
-  const token = signOwnerToken(ownerId, ownerEmail, ownerPhone);
+  const shop = db.shops[demoSlug];
+  const token = signOwnerToken(demoOwnerId, 'demo@marku.local', '+910000000000');
 
   res.cookie('owner_session', token, {
     httpOnly: true,
     secure: IS_PROD,
     sameSite: 'lax',
-    maxAge: 30 * 86400000
+    maxAge: 24 * 3600000
   });
 
   return res.json({
     success: true,
-    message: 'Demo Cockpit accessed successfully!',
+    message: 'Sandbox Demo Cockpit accessed!',
     token,
     redirect: '/dashboard',
     shop: {
       id: shop.id,
       name: shop.name,
       slug: shop.slug,
-      rewardDescription: shop.reward_description || shop.reward_title || '1 Free Item',
-      stampsTarget: shop.stamps_target || shop.stamps_required || 10
+      rewardDescription: shop.reward_description || '1 Free Pour-Over Coffee',
+      stampsTarget: shop.stamps_target || 10
     }
   });
 });
@@ -3831,6 +3799,10 @@ app.post('/api/claim-stamp', async (req, res) => {
         card = newCard;
       }
 
+      if (!card) {
+        throw new Error('Supabase customer_cards lookup/insert returned null; using resilient local store.');
+      }
+
       // Enforce Shop Cooldown
       if (card.last_stamp_at) {
         const lastStampMs = new Date(card.last_stamp_at).getTime();
@@ -4097,6 +4069,24 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
       remainingCooldownMs: remainingCooldown,
       isCooldownActive: remainingCooldown > 0
     }
+  });
+});
+
+// JSON 404 Handler for unknown API routes
+app.use('/api', (req, res) => {
+  return res.status(404).json({ success: false, message: 'API endpoint not found.' });
+});
+
+// Global Express Error Handler (prevents HTML stack traces on malformed JSON or runtime errors)
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, message: 'Invalid JSON request payload.' });
+  }
+  console.error('[ExpressError]:', err?.message || err);
+  if (res.headersSent) return next(err);
+  return res.status(err?.status || 500).json({
+    success: false,
+    message: IS_PROD ? 'Internal server error.' : (err?.message || 'Internal server error.')
   });
 });
 

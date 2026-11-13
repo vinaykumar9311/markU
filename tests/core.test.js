@@ -225,3 +225,35 @@ test('Google token verification handles structured payload parsing', async () =>
   const invalid = await verifyGoogleToken('malformed_string');
   assert.equal(invalid.success, false);
 });
+
+test('Production HTTP endpoints enforce JSON 404, safe JSON parsing, and never leak service role keys', async () => {
+  const { app } = require('../server');
+  const srv = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const baseUrl = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const authRes = await fetch(`${baseUrl}/api/config/auth`);
+    assert.equal(authRes.status, 200);
+    const authJson = await authRes.json();
+    assert.ok(authJson.url);
+    assert.ok(authJson.anonKey);
+    assert.notEqual(authJson.anonKey, process.env.SUPABASE_SERVICE_ROLE_KEY || 'never_match');
+
+    const notFoundRes = await fetch(`${baseUrl}/api/does-not-exist-xyz`);
+    assert.equal(notFoundRes.status, 404);
+    const notFoundJson = await notFoundRes.json();
+    assert.equal(notFoundJson.success, false);
+
+    const badJsonRes = await fetch(`${baseUrl}/api/owner/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{bad_json'
+    });
+    assert.equal(badJsonRes.status, 400);
+    const badJson = await badJsonRes.json();
+    assert.equal(badJson.success, false);
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+});
