@@ -1395,15 +1395,96 @@ app.post('/api/auth/logout', (req, res) => {
   return res.json({ success: true, message: 'Signed out successfully.' });
 });
 
+// Send Email Verification OTP / Magic Link
+app.post('/api/owner/send-email-otp', async (req, res) => {
+  const { email } = req.body || {};
+  const emailCheck = await validateGenuineEmail(email);
+  if (!emailCheck.valid) {
+    return res.status(400).json({ success: false, message: emailCheck.reason });
+  }
+  const cleanEmail = emailCheck.email;
+  const db = loadLocalDb();
+  if (db.owners[cleanEmail] && db.owners[cleanEmail].emailVerified !== false) {
+    return res.status(409).json({ success: false, message: 'This email address is already registered. Please sign in.' });
+  }
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Email verification service is not configured. Please continue with Google.' });
+  }
+  try {
+    const redirectBase = `${req.protocol}://${req.get('host')}`;
+    const { error } = await supabase.auth.signInWithOtp({
+      email: cleanEmail,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${redirectBase}/owner/register.html`
+      }
+    });
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (msg.includes('rate limit') || error.status === 429) {
+        return res.status(429).json({
+          success: false,
+          message: 'Email verification rate limit reached. Please wait a moment or continue with Google.'
+        });
+      }
+      return res.status(400).json({ success: false, message: error.message || 'Could not send verification email.' });
+    }
+    return res.json({
+      success: true,
+      email: cleanEmail,
+      message: `Verification code & link sent to ${cleanEmail}. Check your inbox and enter the 6-digit code (or click the link).`
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to send verification email.' });
+  }
+});
+
+// Verify Email OTP Code
+app.post('/api/owner/verify-email-otp', async (req, res) => {
+  const { email, otp } = req.body || {};
+  if (!isValidEmailSyntax(email)) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = String(otp || '').trim();
+  if (!cleanOtp || cleanOtp.length < 6) {
+    return res.status(400).json({ success: false, message: 'Please enter the 6-digit verification code from your email.' });
+  }
+  if (!supabase) {
+    return res.status(503).json({ success: false, message: 'Email verification service unavailable.' });
+  }
+  try {
+    let verifyRes = await supabase.auth.verifyOtp({ email: cleanEmail, token: cleanOtp, type: 'email' });
+    if (verifyRes.error) {
+      verifyRes = await supabase.auth.verifyOtp({ email: cleanEmail, token: cleanOtp, type: 'signup' });
+    }
+    if (verifyRes.error || !verifyRes.data?.user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification code. Please check your inbox and try again.'
+      });
+    }
+    return res.json({
+      success: true,
+      email: cleanEmail,
+      emailVerificationToken: signEmailVerifiedToken(cleanEmail),
+      supabaseToken: verifyRes.data.session?.access_token || null
+    });
+  } catch {
+    return res.status(400).json({ success: false, message: 'Verification failed. Please request a new code.' });
+  }
+});
+
 // Register New Shop Owner (Supabase Auth / Google / Email)
 app.post('/api/owner/register', async (req, res) => {
-  const { phone, supabaseToken, email, password, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
+  const { phone, supabaseToken, emailVerificationToken, email, password, shopName, slug, rewardDescription, stampsTarget, cooldownHours } = req.body;
   if (!shopName || !shopName.trim()) {
     return res.status(400).json({ success: false, message: 'Shop name is required.' });
   }
 
   let verifiedPhone = null;
   let ownerEmail = null;
+  let isPreVerifiedEmail = false;
   const authToken = supabaseToken;
 
   if (authToken) {
@@ -1411,7 +1492,10 @@ app.post('/api/owner/register', async (req, res) => {
     if (!authResult.success) {
       return res.status(401).json({ success: false, message: 'Invalid authentication: ' + (authResult.reason || 'Token invalid') });
     }
-    if (authResult.email) ownerEmail = authResult.email.trim().toLowerCase();
+    if (authResult.email) {
+      ownerEmail = authResult.email.trim().toLowerCase();
+      isPreVerifiedEmail = true;
+    }
     if (authResult.phone) verifiedPhone = authResult.phone;
   }
 
@@ -1420,6 +1504,7 @@ app.post('/api/owner/register', async (req, res) => {
   } else if (verifiedPhone) {
     const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
     ownerEmail = email ? email.trim().toLowerCase() : `${cleanDigits}@owner.marku.local`;
+    isPreVerifiedEmail = true;
   } else if (email && email.trim() && password && password.trim()) {
     if (password.trim().length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
@@ -1429,6 +1514,52 @@ app.post('/api/owner/register', async (req, res) => {
       return res.status(400).json({ success: false, message: emailCheck.reason });
     }
     ownerEmail = emailCheck.email;
+
+    const verifiedEmailPayload = verifyEmailVerifiedToken(emailVerificationToken, ownerEmail);
+    if (!verifiedEmailPayload) {
+      // Do NOT create shop or issue token until email ownership is proven via OTP/link!
+      if (!supabase) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email verification is required. Please verify your email or continue with Google.'
+        });
+      }
+      try {
+        const redirectBase = `${req.protocol}://${req.get('host')}`;
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email: ownerEmail,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: `${redirectBase}/owner/register.html`
+          }
+        });
+        if (otpErr) {
+          const msg = (otpErr.message || '').toLowerCase();
+          if (msg.includes('rate limit') || otpErr.status === 429) {
+            return res.status(429).json({
+              success: false,
+              message: 'Email verification rate limit reached. Please wait a moment or continue with Google.'
+            });
+          }
+          return res.status(400).json({
+            success: false,
+            message: otpErr.message || 'Could not send verification email. Please check your email address or continue with Google.'
+          });
+        }
+        return res.status(202).json({
+          success: true,
+          requiresEmailOtp: true,
+          email: ownerEmail,
+          message: `Verification code & link sent to ${ownerEmail}. Enter the 6-digit code from your inbox (or click the verification link) to complete registration.`
+        });
+      } catch {
+        return res.status(500).json({
+          success: false,
+          message: 'Could not send verification email. Please try again or continue with Google.'
+        });
+      }
+    }
+    isPreVerifiedEmail = true;
   } else {
     return res.status(400).json({ success: false, message: 'Google authentication or genuine email and password required.' });
   }
@@ -1477,10 +1608,10 @@ app.post('/api/owner/register', async (req, res) => {
       if (existingSlug) {
         return res.status(409).json({ success: false, message: `The shop URL slug "/shop/${cleanSlug}" is already taken. Choose another slug.` });
       }
-      // 1. Create Supabase Auth User
+      // 1. Create or Resolve Verified Supabase Auth User
       let userId = null;
       let sessionToken = null;
-      let isEmailConfirmed = Boolean(authToken || verifiedPhone);
+      let isEmailConfirmed = Boolean(isPreVerifiedEmail || authToken || verifiedPhone);
 
       if (isEmailConfirmed && supabase.auth.admin) {
         try {
@@ -1491,6 +1622,16 @@ app.post('/api/owner/register', async (req, res) => {
           });
           if (adminData && adminData.user) userId = adminData.user.id;
         } catch (e) {}
+        if (!userId) {
+          try {
+            const { data: listData } = await supabase.auth.admin.listUsers();
+            const existing = listData?.users?.find(u => (u.email || '').toLowerCase() === ownerEmail);
+            if (existing) {
+              userId = existing.id;
+              await supabase.auth.admin.updateUserById(existing.id, { password: ownerPassword, email_confirm: true });
+            }
+          } catch (e) {}
+        }
       }
 
       if (!userId && !ownerEmail.endsWith('@owner.marku.local')) {
@@ -1693,6 +1834,30 @@ function verifyOwnerRegToken(tokenStr) {
   try {
     const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
     if (Date.now() > payload.exp) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function signEmailVerifiedToken(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const payload = Buffer.from(JSON.stringify({ email: cleanEmail, purpose: 'email_verified', exp: Date.now() + 20 * 60 * 1000 })).toString('base64url');
+  const sig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyEmailVerifiedToken(tokenStr, expectedEmail) {
+  if (!tokenStr || typeof tokenStr !== 'string') return null;
+  const parts = tokenStr.split('.');
+  if (parts.length !== 2) return null;
+  const [payloadBase64, clientSig] = parts;
+  const expectedSig = crypto.createHmac('sha256', GLOBAL_SECRET).update(payloadBase64).digest('base64url');
+  if (!safeEqual(clientSig, expectedSig)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
+    if (payload.purpose !== 'email_verified' || Date.now() > payload.exp) return null;
+    if (expectedEmail && payload.email !== String(expectedEmail).trim().toLowerCase()) return null;
     return payload;
   } catch {
     return null;
@@ -4349,6 +4514,8 @@ module.exports = {
   verifyGoogleToken,
   validateGenuineEmail,
   isValidEmailSyntax,
+  signEmailVerifiedToken,
+  verifyEmailVerifiedToken,
   getOwnerIdFromReq,
   setAuthCookies,
   setCustomerCookie,

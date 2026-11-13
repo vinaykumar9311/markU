@@ -18,6 +18,8 @@ const {
   verifyGoogleToken,
   validateGenuineEmail,
   isValidEmailSyntax,
+  signEmailVerifiedToken,
+  verifyEmailVerifiedToken,
   getOwnerIdFromReq,
   signCustomerOtpToken,
   verifyCustomerOtpToken,
@@ -370,6 +372,31 @@ test('POST /api/owner/register and /api/owner/login reject fake or non-existent 
       })
     });
     assert.equal(loginNonExistent.status, 401);
+
+    const token = signEmailVerifiedToken('verified@gmail.com');
+    assert.ok(verifyEmailVerifiedToken(token, 'verified@gmail.com'));
+    assert.equal(verifyEmailVerifiedToken(token, 'other@gmail.com'), null);
+
+    const badOtpRes = await fetch(`${baseUrl}/api/owner/verify-email-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'verified@gmail.com', otp: '123' })
+    });
+    assert.equal(badOtpRes.status, 400);
+
+    const unverifiedGmailReg = await fetch(`${baseUrl}/api/owner/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shopName: 'Unverified Gmail Shop',
+        slug: 'unverified-gmail-' + Date.now(),
+        email: 'aivinay164123068@gmail.com',
+        password: 'password123'
+      })
+    });
+    const unverifiedJson = await unverifiedGmailReg.json();
+    assert.equal(unverifiedJson.token, undefined);
+    assert.ok([202, 400, 429].includes(unverifiedGmailReg.status));
   } finally {
     await new Promise((resolve) => srv.close(resolve));
   }

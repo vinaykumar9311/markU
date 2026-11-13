@@ -214,7 +214,24 @@
                 class="w-full bg-[#0b1120] border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
             </div>
           </div>
-          <p class="text-[11px] text-slate-400">We verify email domains and send a confirmation link to your inbox. Fake or non-existent emails are rejected.</p>
+          <p class="text-[11px] text-slate-400">We verify email domains and send a 6-digit OTP &amp; confirmation link to your inbox. Fake or non-existent emails are rejected.</p>
+
+          <!-- Email OTP Verification Box (Shown after code is sent) -->
+          <div id="emailOtpSection" class="hidden bg-indigo-950/40 border border-indigo-500/40 rounded-xl p-4 space-y-3">
+            <div class="text-xs font-bold text-indigo-300">Enter 6-Digit Email Verification Code</div>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input type="text" id="emailOtpInput" maxlength="8" inputmode="numeric" placeholder="Enter 6-digit code from inbox"
+                class="flex-1 bg-[#0b1120] border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono tracking-widest placeholder-slate-500 focus:outline-none">
+              <button type="button" id="verifyEmailOtpBtn" onclick="verifyEmailOtpAndRegister()"
+                class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs cursor-pointer transition-all shrink-0">
+                Verify Code &amp; Create Shop
+              </button>
+              <button type="button" onclick="resendEmailOtp()"
+                class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all shrink-0">
+                Resend
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -463,8 +480,14 @@
       }
 
       submitBtn.disabled = true;
-      submitText.textContent = 'Setting up your shop...';
-      showInfo('Registering shop in database...');
+      submitText.textContent = 'Sending verification code...';
+      showInfo('Validating genuine email & sending verification code...');
+
+      try {
+        localStorage.setItem('pending_shop_reg', JSON.stringify({
+          shopName, slug, stampsTarget, rewardDescription, cooldownHours
+        }));
+      } catch {}
 
       try {
         const res = await fetch('/api/owner/register', {
@@ -483,10 +506,14 @@
         });
 
         const data = await res.json();
-        if (data.success && data.requiresEmailVerification) {
-          showInfo(data.message || 'Verification link sent! Please check your inbox and verify your email before signing in.');
+        if (data.success && (data.requiresEmailOtp || data.requiresEmailVerification)) {
+          showInfo(data.message || 'Verification code sent! Enter the 6-digit code from your inbox.');
+          const otpSec = document.getElementById('emailOtpSection');
+          if (otpSec) otpSec.classList.remove('hidden');
+          const otpInp = document.getElementById('emailOtpInput');
+          if (otpInp) otpInp.focus();
           submitBtn.disabled = false;
-          submitText.textContent = 'Verification Email Sent — Check Inbox';
+          submitText.textContent = 'Resend Verification Code';
         } else if (data.success && data.token) {
           localStorage.setItem('owner_token', data.token);
           if (data.shop) localStorage.setItem('owner_shop', JSON.stringify(data.shop));
@@ -503,6 +530,96 @@
         showError('Network error during registration. Please try again.');
         submitBtn.disabled = false;
         submitText.textContent = '🚀 Create Shop & Enter Cockpit';
+      }
+    }
+
+    async function verifyEmailOtpAndRegister() {
+      const shopName = document.getElementById('shopName').value.trim();
+      const slug = document.getElementById('shopSlug').value.trim();
+      const stampsTarget = parseInt(document.getElementById('stampsTarget').value) || 10;
+      const rewardDescription = document.getElementById('rewardDescription').value.trim();
+      const cooldownHours = parseFloat(document.getElementById('cooldownHours').value) || 7;
+      const email = document.getElementById('ownerEmail').value.trim();
+      const password = document.getElementById('ownerPassword').value.trim();
+      const otp = (document.getElementById('emailOtpInput')?.value || '').trim();
+      const verifyBtn = document.getElementById('verifyEmailOtpBtn');
+
+      if (!otp || otp.length < 6) {
+        showError('Please enter the 6-digit verification code sent to your email.');
+        return;
+      }
+
+      if (verifyBtn) verifyBtn.disabled = true;
+      showInfo('Verifying email code...');
+
+      try {
+        const otpRes = await fetch('/api/owner/verify-email-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp })
+        });
+        const otpData = await otpRes.json();
+        if (!otpRes.ok || !otpData.success) {
+          showError(otpData.message || 'Invalid or expired verification code.');
+          if (verifyBtn) verifyBtn.disabled = false;
+          return;
+        }
+
+        const regRes = await fetch('/api/owner/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            shopName,
+            slug,
+            stampsTarget,
+            rewardDescription,
+            cooldownHours,
+            email,
+            password,
+            emailVerificationToken: otpData.emailVerificationToken
+          })
+        });
+        const regData = await regRes.json();
+        if (regData.success && regData.token) {
+          try { localStorage.removeItem('pending_shop_reg'); } catch {}
+          localStorage.setItem('owner_token', regData.token);
+          if (regData.shop) localStorage.setItem('owner_shop', JSON.stringify(regData.shop));
+          showInfo('Email verified & shop created! Launching Cockpit...');
+          setTimeout(() => {
+            window.location.href = regData.redirect || '/dashboard';
+          }, 400);
+        } else {
+          showError(regData.message || 'Could not complete registration.');
+          if (verifyBtn) verifyBtn.disabled = false;
+        }
+      } catch (err) {
+        showError('Network error verifying code. Please try again.');
+        if (verifyBtn) verifyBtn.disabled = false;
+      }
+    }
+
+    async function resendEmailOtp() {
+      const email = document.getElementById('ownerEmail').value.trim();
+      if (!email) {
+        showError('Please enter your email address first.');
+        return;
+      }
+      showInfo('Resending verification code...');
+      try {
+        const res = await fetch('/api/owner/send-email-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showInfo(data.message);
+        } else {
+          showError(data.message || 'Failed to resend verification code.');
+        }
+      } catch {
+        showError('Network error resending verification code.');
       }
     }
 
