@@ -116,8 +116,21 @@ function loadLocalDb() {
 }
 
 function saveLocalDb(data) {
-  if (data && Array.isArray(data.history) && data.history.length > 500) {
-    data.history = data.history.slice(0, 500);
+  if (data) {
+    if (Array.isArray(data.history) && data.history.length > 500) {
+      data.history = data.history.slice(0, 500);
+    }
+    if (data.usedTokens && typeof data.usedTokens === 'object') {
+      const keys = Object.keys(data.usedTokens);
+      if (keys.length > 500) {
+        const cutoff = Date.now() - 86400000;
+        for (const k of keys) {
+          if (data.usedTokens[k] && data.usedTokens[k].usedAt < cutoff) {
+            delete data.usedTokens[k];
+          }
+        }
+      }
+    }
   }
   memoryDb = data;
   try {
@@ -194,7 +207,15 @@ app.get('/dashboard', (req, res) => {
   return res.redirect('/owner/dashboard.html');
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  maxAge: IS_PROD ? '1h' : 0,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('sw.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 const limiterOpts = { standardHeaders: true, legacyHeaders: false };
 app.use('/api', rateLimit({ ...limiterOpts, windowMs: 60 * 1000, limit: 300, message: { success: false, message: 'Too many requests. Slow down.' } }));
@@ -207,13 +228,21 @@ app.get('/health', (req, res) => {
   return res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: Date.now() });
 });
 
-app.get('/ready', (req, res) => {
-  const isDbReady = !!supabase;
-  return res.status(200).json({
-    ready: isDbReady,
-    supabaseConnected: isDbReady,
-    authProvider: 'google-oauth'
-  });
+app.get('/ready', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ ready: false, supabaseConnected: false, mode: 'local-fallback' });
+  }
+  try {
+    const { error } = await supabase.from('shops').select('id').limit(1);
+    const ok = !error;
+    return res.status(ok ? 200 : 503).json({
+      ready: ok,
+      supabaseConnected: ok,
+      uptime: process.uptime()
+    });
+  } catch (err) {
+    return res.status(503).json({ ready: false, supabaseConnected: false });
+  }
 });
 
 // Unified Auth Config Endpoint (Google Client ID & Supabase)
@@ -4092,12 +4121,25 @@ app.use((err, req, res, next) => {
 
 let server = null;
 if (require.main === module) {
+  const otpSweepTimer = setInterval(() => {
+    const now = Date.now();
+    for (const store of [ownerOtpStore, customerOtpStore, activeOtpStore]) {
+      for (const [key, rec] of store.entries()) {
+        if (!rec || (rec.expiresAt && now > rec.expiresAt)) {
+          store.delete(key);
+        }
+      }
+    }
+  }, 10 * 60 * 1000);
+  otpSweepTimer.unref();
+
   server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[LoyaltyServer] Running on http://localhost:${PORT}`);
     console.log(`[LoyaltyServer] Owner Portal: http://${LAN_IP}:${PORT}/owner/dashboard.html`);
   });
 
   const shutdown = (signal) => {
+    clearInterval(otpSweepTimer);
     console.log(`[LoyaltyServer] Received ${signal}. Shutting down gracefully...`);
     if (server) {
       server.close(() => {
