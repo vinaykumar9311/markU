@@ -10,6 +10,7 @@ const express = require('express');
 const crypto = require('crypto');
 const dns = require('dns');
 const fs = require('fs');
+const nodemailer = require('nodemailer');
 const path = require('path');
 const QRCode = require('qrcode');
 const os = require('os');
@@ -1395,6 +1396,100 @@ app.post('/api/auth/logout', (req, res) => {
   return res.json({ success: true, message: 'Signed out successfully.' });
 });
 
+const emailOtpStore = new Map();
+
+async function dispatchEmailOtp(cleanEmail, redirectBase) {
+  const hasGmail = Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+  const hasSmtp = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  const hasResend = Boolean(process.env.RESEND_API_KEY);
+
+  if (hasGmail || hasSmtp || hasResend) {
+    const otp = String(crypto.randomInt(100000, 999999));
+    emailOtpStore.set(cleanEmail, { otp, expiresAt: Date.now() + 10 * 60 * 1000, attempts: 0 });
+    const subject = 'MarkU Verification Code: ' + otp;
+    const html = `<div style="font-family:sans-serif;padding:24px;background:#0f172a;color:#f8fafc;border-radius:12px;">
+      <h2 style="margin:0 0 12px;">Verify your MarkU Shop Email</h2>
+      <p style="color:#cbd5e1;">Use this 6-digit verification code to complete your shop registration:</p>
+      <div style="font-size:32px;font-weight:800;letter-spacing:6px;margin:20px 0;color:#818cf8;">${otp}</div>
+      <p style="color:#94a3b8;font-size:12px;">This code expires in 10 minutes. If you did not request this, ignore this email.</p>
+    </div>`;
+
+    if (hasResend) {
+      const rRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'MarkU <onboarding@resend.dev>',
+          to: [cleanEmail],
+          subject,
+          html
+        })
+      });
+      if (!rRes.ok) {
+        const errBody = await rRes.text();
+        return { ok: false, status: 502, message: `Email delivery failed: ${errBody}` };
+      }
+      return { ok: true, mode: 'resend', message: `6-digit verification code sent to ${cleanEmail}. Check your inbox (or spam folder).` };
+    }
+
+    const transporter = nodemailer.createTransport(
+      hasGmail
+        ? { service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } }
+        : {
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT || '587', 10),
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+          }
+    );
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || process.env.GMAIL_USER || process.env.SMTP_USER,
+      to: cleanEmail,
+      subject,
+      html
+    });
+    return { ok: true, mode: 'smtp', message: `6-digit verification code sent to ${cleanEmail}. Check your inbox (or spam folder).` };
+  }
+
+  if (!supabase) {
+    return { ok: false, status: 503, message: 'Email verification service is not configured. Please continue with Google.' };
+  }
+
+  // Ensure user exists in Supabase with email_confirm: false so Supabase does NOT auto-confirm without sending email
+  if (supabase.auth.admin) {
+    try {
+      await supabase.auth.admin.createUser({ email: cleanEmail, email_confirm: false });
+    } catch {}
+  }
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email: cleanEmail,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: `${redirectBase}/owner/register.html`
+    }
+  });
+  if (error) {
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('rate limit') || error.status === 429) {
+      return {
+        ok: false,
+        status: 429,
+        message: 'Supabase built-in email limit (2/hour) reached. Add GMAIL_USER & GMAIL_APP_PASSWORD (or SMTP_*) in .env for unlimited emails, or use Google Sign-Up.'
+      };
+    }
+    return { ok: false, status: 400, message: error.message || 'Could not send verification email.' };
+  }
+  return {
+    ok: true,
+    mode: 'supabase',
+    message: `Verification link/code sent to ${cleanEmail} via Supabase. Check your inbox & spam folder (or use Google Sign-Up if delayed).`
+  };
+}
+
 // Send Email Verification OTP / Magic Link
 app.post('/api/owner/send-email-otp', async (req, res) => {
   const { email } = req.body || {};
@@ -1407,35 +1502,15 @@ app.post('/api/owner/send-email-otp', async (req, res) => {
   if (db.owners[cleanEmail] && db.owners[cleanEmail].emailVerified !== false) {
     return res.status(409).json({ success: false, message: 'This email address is already registered. Please sign in.' });
   }
-  if (!supabase) {
-    return res.status(503).json({ success: false, message: 'Email verification service is not configured. Please continue with Google.' });
-  }
   try {
     const redirectBase = `${req.protocol}://${req.get('host')}`;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: cleanEmail,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${redirectBase}/owner/register.html`
-      }
-    });
-    if (error) {
-      const msg = (error.message || '').toLowerCase();
-      if (msg.includes('rate limit') || error.status === 429) {
-        return res.status(429).json({
-          success: false,
-          message: 'Email verification rate limit reached. Please wait a moment or continue with Google.'
-        });
-      }
-      return res.status(400).json({ success: false, message: error.message || 'Could not send verification email.' });
+    const result = await dispatchEmailOtp(cleanEmail, redirectBase);
+    if (!result.ok) {
+      return res.status(result.status || 400).json({ success: false, message: result.message });
     }
-    return res.json({
-      success: true,
-      email: cleanEmail,
-      message: `Verification code & link sent to ${cleanEmail}. Check your inbox and enter the 6-digit code (or click the link).`
-    });
+    return res.json({ success: true, email: cleanEmail, message: result.message });
   } catch (err) {
-    return res.status(500).json({ success: false, message: 'Failed to send verification email.' });
+    return res.status(500).json({ success: false, message: 'Failed to send verification email: ' + err.message });
   }
 });
 
@@ -1450,6 +1525,32 @@ app.post('/api/owner/verify-email-otp', async (req, res) => {
   if (!cleanOtp || cleanOtp.length < 6) {
     return res.status(400).json({ success: false, message: 'Please enter the 6-digit verification code from your email.' });
   }
+
+  // 1. Check local SMTP/Resend OTP store first
+  const localRec = emailOtpStore.get(cleanEmail);
+  if (localRec) {
+    if (Date.now() > localRec.expiresAt) {
+      emailOtpStore.delete(cleanEmail);
+      return res.status(400).json({ success: false, message: 'Verification code expired. Please request a new code.' });
+    }
+    if (localRec.attempts >= 5) {
+      emailOtpStore.delete(cleanEmail);
+      return res.status(429).json({ success: false, message: 'Too many invalid attempts. Please request a new code.' });
+    }
+    if (!safeEqual(localRec.otp, cleanOtp)) {
+      localRec.attempts += 1;
+      return res.status(400).json({ success: false, message: 'Invalid verification code. Please check your inbox and try again.' });
+    }
+    emailOtpStore.delete(cleanEmail);
+    return res.json({
+      success: true,
+      email: cleanEmail,
+      emailVerificationToken: signEmailVerifiedToken(cleanEmail),
+      supabaseToken: null
+    });
+  }
+
+  // 2. Otherwise verify against Supabase OTP
   if (!supabase) {
     return res.status(503).json({ success: false, message: 'Email verification service unavailable.' });
   }
@@ -1518,44 +1619,22 @@ app.post('/api/owner/register', async (req, res) => {
     const verifiedEmailPayload = verifyEmailVerifiedToken(emailVerificationToken, ownerEmail);
     if (!verifiedEmailPayload) {
       // Do NOT create shop or issue token until email ownership is proven via OTP/link!
-      if (!supabase) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email verification is required. Please verify your email or continue with Google.'
-        });
-      }
       try {
         const redirectBase = `${req.protocol}://${req.get('host')}`;
-        const { error: otpErr } = await supabase.auth.signInWithOtp({
-          email: ownerEmail,
-          options: {
-            shouldCreateUser: true,
-            emailRedirectTo: `${redirectBase}/owner/register.html`
-          }
-        });
-        if (otpErr) {
-          const msg = (otpErr.message || '').toLowerCase();
-          if (msg.includes('rate limit') || otpErr.status === 429) {
-            return res.status(429).json({
-              success: false,
-              message: 'Email verification rate limit reached. Please wait a moment or continue with Google.'
-            });
-          }
-          return res.status(400).json({
-            success: false,
-            message: otpErr.message || 'Could not send verification email. Please check your email address or continue with Google.'
-          });
+        const otpResult = await dispatchEmailOtp(ownerEmail, redirectBase);
+        if (!otpResult.ok) {
+          return res.status(otpResult.status || 400).json({ success: false, message: otpResult.message });
         }
         return res.status(202).json({
           success: true,
           requiresEmailOtp: true,
           email: ownerEmail,
-          message: `Verification code & link sent to ${ownerEmail}. Enter the 6-digit code from your inbox (or click the verification link) to complete registration.`
+          message: otpResult.message
         });
-      } catch {
+      } catch (err) {
         return res.status(500).json({
           success: false,
-          message: 'Could not send verification email. Please try again or continue with Google.'
+          message: 'Could not send verification email: ' + err.message
         });
       }
     }
