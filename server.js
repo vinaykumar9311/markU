@@ -570,6 +570,7 @@ function formatDuration(seconds) {
 }
 
 // Resolve Owner ID from Request (checks Cookie Access JWT, Bearer Token, or Refresh Cookie)
+// Strictly enforces role === 'owner' so customer tokens can never access owner routes.
 async function getOwnerIdFromReq(req) {
   let token = null;
   const authHeader = req.headers?.authorization;
@@ -577,11 +578,16 @@ async function getOwnerIdFromReq(req) {
     token = authHeader.split(' ')[1];
   } else if (req.cookies && req.cookies.marku_access_token) {
     token = req.cookies.marku_access_token;
+  } else if (req.cookies && req.cookies.owner_session) {
+    token = req.cookies.owner_session;
   }
 
   if (token) {
     const userAccess = verifyUserAccessToken(token);
-    if (userAccess) return userAccess.userId || userAccess.ownerId;
+    if (userAccess) {
+      if (userAccess.role && userAccess.role !== 'owner') return null;
+      return userAccess.userId || userAccess.ownerId;
+    }
 
     const legacy = verifyOwnerToken(token);
     if (legacy) return legacy.ownerId;
@@ -589,14 +595,20 @@ async function getOwnerIdFromReq(req) {
     if (supabase) {
       try {
         const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (!error && user) return user.id;
+        if (!error && user) {
+          const metaRole = user.user_metadata?.role || user.app_metadata?.role;
+          if (metaRole === 'customer') return null;
+          return user.id;
+        }
       } catch (e) {}
     }
   }
 
   if (req.cookies && req.cookies.marku_refresh_token) {
     const refresh = verifyRefreshToken(req.cookies.marku_refresh_token);
-    if (refresh && refresh.userId) return refresh.userId;
+    if (refresh && refresh.userId && (!refresh.role || refresh.role === 'owner')) {
+      return refresh.userId;
+    }
   }
 
   return null;
@@ -613,15 +625,24 @@ async function verifyGoogleToken(idToken) {
     const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
     if (googleRes.ok) {
       const data = await googleRes.json();
-      if (data && data.email) {
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID || process.env.PUBLIC_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+      const emailVerified = data?.email_verified === 'true' || data?.email_verified === true;
+      const audMatches = !expectedClientId || !data?.aud || data.aud === expectedClientId;
+      if (data && data.email && emailVerified && audMatches) {
         return {
           success: true,
           googleId: data.sub,
           email: data.email.toLowerCase().trim(),
           name: data.name || data.email.split('@')[0],
           avatarUrl: data.picture || null,
-          emailVerified: data.email_verified === 'true' || data.email_verified === true
+          emailVerified: true
         };
+      }
+      if (data && data.email && !audMatches) {
+        return { success: false, reason: 'Google token audience mismatch.' };
+      }
+      if (data && data.email && !emailVerified) {
+        return { success: false, reason: 'Google account email is not verified.' };
       }
     }
   } catch (err) {
@@ -651,7 +672,8 @@ async function verifyGoogleToken(idToken) {
       const parts = idToken.split('.');
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-        if (payload.email) {
+        const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+        if (payload.email && emailVerified) {
           return {
             success: true,
             googleId: payload.sub || payload.id || crypto.randomUUID(),

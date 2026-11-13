@@ -239,6 +239,11 @@
             <span>Apple Sign-Up</span>
           </button>
         </div>
+
+        <!-- Google Identity Services Rendered Button -->
+        <div id="gsiButtonWrapper" class="hidden pt-1 flex justify-center">
+          <div id="gsiButtonContainer"></div>
+        </div>
       </div>
 
     </form>
@@ -286,18 +291,118 @@
       infoBanner.classList.remove('hidden');
     }
 
+    let gsiInitialized = false;
+    let googleAuthSubmitting = false;
+
     window.addEventListener('DOMContentLoaded', async () => {
       try {
         const confRes = await fetch('/api/config/auth');
         const conf = await confRes.json();
         if (conf.url && conf.anonKey && window.supabase) {
           supabaseClient = window.supabase.createClient(conf.url, conf.anonKey);
+
+          const { data: sessionData } = await supabaseClient.auth.getSession();
+          if (sessionData && sessionData.session && sessionData.session.access_token) {
+            await submitGoogleRegistration({ supabaseToken: sessionData.session.access_token });
+            return;
+          }
+
+          supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+            if (session && session.access_token) {
+              await submitGoogleRegistration({ supabaseToken: session.access_token });
+            }
+          });
         }
         if (conf.googleClientId) {
           googleClientId = conf.googleClientId;
+          initGoogleClient(conf.googleClientId);
+          if (!window.google || !window.google.accounts) {
+            window.addEventListener('load', () => initGoogleClient(conf.googleClientId), { once: true });
+          }
         }
       } catch {}
     });
+
+    function initGoogleClient(clientId) {
+      if (gsiInitialized || !window.google || !window.google.accounts || !clientId) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false
+        });
+        const container = document.getElementById('gsiButtonContainer');
+        const wrapper = document.getElementById('gsiButtonWrapper');
+        if (container) {
+          container.innerHTML = '';
+          window.google.accounts.id.renderButton(container, {
+            theme: 'filled_black',
+            size: 'large',
+            shape: 'pill',
+            text: 'signup_with',
+            width: 300
+          });
+          if (wrapper) wrapper.classList.remove('hidden');
+        }
+        gsiInitialized = true;
+      } catch {}
+    }
+
+    async function handleGoogleCredentialResponse(response) {
+      if (!response || !response.credential) {
+        showError('No Google credential returned. Please try again.');
+        return;
+      }
+      await submitGoogleRegistration({ credential: response.credential });
+    }
+
+    function getPendingShopPayload() {
+      let saved = {};
+      try {
+        const raw = localStorage.getItem('pending_shop_reg');
+        if (raw) saved = JSON.parse(raw) || {};
+      } catch {}
+      const shopName = document.getElementById('shopName').value.trim() || saved.shopName || '';
+      const slug = document.getElementById('shopSlug').value.trim() || saved.slug || '';
+      const rewardDescription = document.getElementById('rewardDescription').value.trim() || saved.rewardDescription || '1 Free Item';
+      const stampsTarget = parseInt(document.getElementById('stampsTarget').value) || saved.stampsTarget || 10;
+      const cooldownHours = parseFloat(document.getElementById('cooldownHours').value) || saved.cooldownHours || 12;
+      return { shopName, slug, rewardDescription, stampsTarget, cooldownHours };
+    }
+
+    async function submitGoogleRegistration(authPayload) {
+      if (googleAuthSubmitting) return;
+      googleAuthSubmitting = true;
+      showInfo('Completing Google shop enrollment...');
+
+      const shopPayload = getPendingShopPayload();
+      try {
+        const res = await fetch('/api/auth/google/owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...authPayload,
+            ...shopPayload
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          googleAuthSubmitting = false;
+          showError(data.error || 'Google enrollment failed.');
+          return;
+        }
+
+        try { localStorage.removeItem('pending_shop_reg'); } catch {}
+        if (data.token) localStorage.setItem('marku_owner_token', data.token);
+        if (data.shop && data.shop.slug) localStorage.setItem('marku_shop_slug', data.shop.slug);
+        if (data.shop && data.shop.name) localStorage.setItem('marku_shop_name', data.shop.name);
+        if (data.user && data.user.email) localStorage.setItem('marku_owner_email', data.user.email);
+        window.location.href = data.redirect || '/dashboard';
+      } catch (err) {
+        googleAuthSubmitting = false;
+        showError('Network error during Google enrollment: ' + err.message);
+      }
+    }
 
     async function handleFormSubmit(event) {
       event.preventDefault();
@@ -365,6 +470,10 @@
         return;
       }
 
+      try {
+        localStorage.setItem('pending_shop_reg', JSON.stringify(getPendingShopPayload()));
+      } catch {}
+
       if (supabaseClient) {
         showInfo('Connecting to Google...');
         try {
@@ -374,13 +483,32 @@
               redirectTo: window.location.origin + '/owner/register.html'
             }
           });
-          if (error) showError('Google OAuth error: ' + error.message + '. Tip: Use the Password Form above.');
+          if (!error) return;
+          if (window.google && window.google.accounts && googleClientId) {
+            initGoogleClient(googleClientId);
+            window.google.accounts.id.prompt();
+            return;
+          }
+          showError('Google OAuth error: ' + error.message + '. Tip: Use the Password Form above.');
+          return;
         } catch (err) {
+          if (window.google && window.google.accounts && googleClientId) {
+            initGoogleClient(googleClientId);
+            window.google.accounts.id.prompt();
+            return;
+          }
           showError('Google OAuth error: ' + err.message + '. Tip: Use the Password Form above.');
+          return;
         }
-      } else {
-        showError('Google OAuth is not configured on this host. Please use the Password Form above.');
       }
+
+      if (window.google && window.google.accounts && googleClientId) {
+        initGoogleClient(googleClientId);
+        window.google.accounts.id.prompt();
+        return;
+      }
+
+      showError('Google OAuth is not configured on this host. Please use the Password Form above.');
     }
 
     async function handleAppleSignUp() {

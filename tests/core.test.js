@@ -16,6 +16,7 @@ const {
   signCustomerSessionToken,
   verifyCustomerSessionToken,
   verifyGoogleToken,
+  getOwnerIdFromReq,
   signCustomerOtpToken,
   verifyCustomerOtpToken,
   hashPassword,
@@ -256,4 +257,53 @@ test('Production HTTP endpoints enforce JSON 404, safe JSON parsing, and never l
   } finally {
     await new Promise((resolve) => srv.close(resolve));
   }
+});
+
+test('getOwnerIdFromReq enforces owner role and rejects customer tokens', async () => {
+  const customerAccess = signUserAccessToken({ userId: 'cust_123', email: 'c@gmail.com', role: 'customer' });
+  const customerRefresh = signRefreshToken('cust_123', 'customer', null, 7).token;
+  const ownerAccess = signUserAccessToken({ userId: 'owner_123', email: 'o@gmail.com', role: 'owner' });
+
+  const custHeaderReq = { headers: { authorization: `Bearer ${customerAccess}` }, cookies: {} };
+  assert.equal(await getOwnerIdFromReq(custHeaderReq), null);
+
+  const custCookieReq = { headers: {}, cookies: { marku_access: customerAccess, marku_refresh: customerRefresh } };
+  assert.equal(await getOwnerIdFromReq(custCookieReq), null);
+
+  const ownerHeaderReq = { headers: { authorization: `Bearer ${ownerAccess}` }, cookies: {} };
+  assert.equal(await getOwnerIdFromReq(ownerHeaderReq), 'owner_123');
+
+  const ownerCookieReq = { headers: {}, cookies: { owner_session: ownerAccess } };
+  assert.equal(await getOwnerIdFromReq(ownerCookieReq), 'owner_123');
+});
+
+test('GET /api/owner/dashboard rejects customer JWT with 401', async () => {
+  const { app } = require('../server');
+  const customerAccess = signUserAccessToken({ userId: 'cust_999', email: 'cust@gmail.com', role: 'customer' });
+  const srv = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const baseUrl = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const res = await fetch(`${baseUrl}/api/owner/dashboard`, {
+      headers: { Authorization: `Bearer ${customerAccess}` }
+    });
+    assert.equal(res.status, 401);
+  } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+});
+
+test('verifyGoogleToken rejects missing email or unverified email payloads', async () => {
+  const noEmailPayload = Buffer.from(JSON.stringify({ sub: 'g_1', email_verified: true })).toString('base64url');
+  const noEmailRes = await verifyGoogleToken(`h.${noEmailPayload}.s`);
+  assert.equal(noEmailRes.success, false);
+
+  const unverifiedPayload = Buffer.from(JSON.stringify({
+    sub: 'g_2',
+    email: 'unverified@gmail.com',
+    email_verified: false
+  })).toString('base64url');
+  const unverifiedRes = await verifyGoogleToken(`h.${unverifiedPayload}.s`);
+  assert.equal(unverifiedRes.success, false);
 });
