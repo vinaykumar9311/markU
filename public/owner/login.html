@@ -27,60 +27,61 @@
       -webkit-font-smoothing: antialiased;
     }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .dark-glow-hero {
+      background: radial-gradient(circle at 50% 15%, rgba(229, 168, 59, 0.16) 0%, rgba(13, 13, 14, 0.96) 55%, #0d0d0e 100%);
+    }
+    .gold-gradient-text {
+      background: linear-gradient(135deg, #f6d365 0%, #d49a37 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
     .glass-card {
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(18, 20, 26, 0.92);
       backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(229, 168, 59, 0.18);
+      box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.75);
     }
     .btn-google {
-      background: #ffffff;
-      color: #0f172a;
+      background: linear-gradient(135deg, #f6d365 0%, #d49a37 100%);
+      color: #0d0d0e;
+      box-shadow: 0 6px 20px rgba(212, 154, 55, 0.35);
       transition: all 0.2s ease;
     }
     .btn-google:hover {
-      background: #f1f5f9;
+      background: linear-gradient(135deg, #fae084 0%, #e5a83b 100%);
       transform: translateY(-1px);
-      box-shadow: 0 10px 25px -5px rgba(255, 255, 255, 0.15);
-    }
-    .btn-demo {
-      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-      transition: all 0.2s ease;
-    }
-    .btn-demo:hover {
-      background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 12px 28px -6px rgba(99, 102, 241, 0.45);
+      box-shadow: 0 10px 26px rgba(229, 168, 59, 0.45);
     }
     .btn-apple {
-      background: #020617;
+      background: #14161d;
       color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(229, 168, 59, 0.3);
       transition: all 0.2s ease;
     }
     .btn-apple:hover {
-      background: #0f172a;
-      border-color: rgba(255, 255, 255, 0.3);
+      background: #1c1f29;
+      border-color: rgba(229, 168, 59, 0.65);
       transform: translateY(-1px);
     }
   </style>
 </head>
-<body class="flex flex-col min-h-screen px-4 py-6 justify-between relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+<body class="dark-glow-hero flex flex-col min-h-screen px-4 py-6 justify-between relative overflow-x-hidden selection:bg-amber-500 selection:text-black">
 
-  <!-- Ambient Glow -->
-  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-indigo-500/15 blur-[140px] pointer-events-none rounded-full"></div>
+  <!-- Ambient Golden Glow -->
+  <div class="fixed -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-amber-500/15 blur-[140px] pointer-events-none rounded-full"></div>
 
   <!-- Header -->
   <header class="w-full max-w-md mx-auto flex items-center justify-between py-2 relative z-10">
-    <a href="/" class="flex items-center gap-2">
-      <span class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center font-black text-indigo-400 text-base tracking-wider">
-        M
-      </span>
-      <span class="text-lg font-black tracking-tight text-white flex items-center gap-1">
-        <span>Mark</span><span class="text-indigo-400">U</span>
+    <a href="/" class="flex items-center gap-0.5 shrink-0">
+      <span class="text-xl font-black tracking-tight text-white">Mark</span>
+      <span class="text-xl font-black tracking-tight text-[#e5a83b] relative">
+        U
+        <svg class="w-3 h-1.5 absolute -top-1 right-0 text-[#e5a83b]" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M1 2C4 7 10 7 13 2" />
+        </svg>
       </span>
     </a>
-    <a href="/" class="text-xs font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+    <a href="/" class="text-xs font-semibold text-slate-400 hover:text-[#e5a83b] transition-colors flex items-center gap-1">
       <span>Back to Home</span>
       <span>&rarr;</span>
     </a>
@@ -90,10 +91,10 @@
   <main class="w-full max-w-md mx-auto my-auto glass-card rounded-3xl p-6 sm:p-8 space-y-5 relative z-10">
     
     <div>
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold uppercase tracking-wider mb-2">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-[#e5a83b] text-[11px] font-bold uppercase tracking-wider mb-2">
         <span>Owner Cockpit</span>
       </div>
-      <h1 class="text-2xl font-extrabold tracking-tight text-white">Shop Owner Sign In</h1>
+      <h1 class="text-2xl font-extrabold tracking-tight text-white">Shop <span class="gold-gradient-text">Owner Sign In</span></h1>
       <p class="text-xs text-slate-400 mt-1">Access your loyalty terminal, customer stats, and QR counter.</p>
     </div>
 
@@ -107,19 +108,21 @@
     <div id="oauthSection" class="space-y-3 pt-1">
       <!-- Prominent Branded Google Button -->
       <button type="button" id="googleLoginBtn" onclick="triggerGoogleSignIn()"
-        class="w-full btn-google font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md">
-        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-        </svg>
+        class="w-full btn-google font-extrabold py-3.5 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md cursor-pointer">
+        <span class="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+        </span>
         <span id="googleLoginBtnText">Continue with Google</span>
       </button>
 
       <!-- Apple Button -->
       <button type="button" id="appleLoginBtn" onclick="handleAppleSignIn()"
-        class="w-full btn-apple font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5">
+        class="w-full btn-apple font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 cursor-pointer">
         <svg class="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
           <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.78 1.06-1.85.94-2.93-.91.04-2.03.61-2.69 1.39-.58.67-1.09 1.76-.95 2.81 1.02.08 2.06-.51 2.7-1.27z"/>
         </svg>
@@ -127,8 +130,8 @@
       </button>
     </div>
 
-    <div class="text-center text-xs text-slate-400 pt-3 border-t border-slate-800/80">
-      Need a new shop account? <a href="/owner/register.html" class="text-indigo-400 font-bold hover:underline">Enroll your shop free</a>
+    <div class="text-center text-xs text-slate-400 pt-3 border-t border-white/10">
+      Need a new shop account? <a href="/owner/register.html" class="text-[#e5a83b] font-bold hover:underline">Enroll your shop free</a>
     </div>
 
   </main>
