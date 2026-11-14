@@ -1,32 +1,23 @@
 services:
   - type: web
-    name: marku01-saas
+    name: marku-loyalty
     runtime: node
-    plan: starter
-    region: singapore # Closest low-latency region for Indian and Asian merchants
-    buildCommand: npm install --production --silent --no-audit --no-fund
+    plan: free
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci --omit=dev
     startCommand: node server.js
     healthCheckPath: /health
     envVars:
-      - key: NODE_VERSION
-        value: 22.12.0
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
       - key: APP_SECRET
-        generateValue: true # Render will automatically generate a secure 64-char key
-      - key: COOLDOWN_HOURS
-        value: 12
-      - key: QR_LIFETIME_MINUTES
-        value: 5
+        generateValue: true
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: PUBLIC_SUPABASE_URL
-        sync: false
-      - key: PUBLIC_SUPABASE_ANON_KEY
+      - key: GOOGLE_CLIENT_ID
         sync: false
