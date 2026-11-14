@@ -26,7 +26,7 @@ if (IS_PROD && (!process.env.APP_SECRET || process.env.APP_SECRET.length < 32)) 
   console.error('[FATAL] APP_SECRET must be set to a random string of at least 32 characters in production.');
   process.exit(1);
 }
-const GLOBAL_SECRET = process.env.APP_SECRET || 'marku_production_master_secret_2026_9876543210abcdef';
+const GLOBAL_SECRET = process.env.APP_SECRET || crypto.createHash('sha256').update(process.cwd() + ':dev-only').digest('hex');
 
 // Constant-time string comparison that is safe for unequal lengths
 function safeEqual(a, b) {
@@ -1209,23 +1209,47 @@ app.post('/api/auth/google/customer', async (req, res) => {
   let avatarUrl = null;
 
   if (provider === 'apple') {
-    if (!email) return res.status(400).json({ success: false, message: 'Missing Apple account email.' });
-    customerEmail = email.toLowerCase().trim();
-    customerName = name || 'Apple Customer';
-    googleId = 'apple_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
+    const appleToken = supabaseToken || credential || id_token;
+    if (!appleToken) {
+      return res.status(401).json({ success: false, message: 'Verified Apple Sign-In token is required.' });
+    }
+    const verifiedApple = await verifySupabaseToken(appleToken);
+    if (!verifiedApple.success || !verifiedApple.email) {
+      return res.status(401).json({ success: false, message: 'Apple authentication failed: ' + (verifiedApple.reason || 'Invalid token') });
+    }
+    customerEmail = verifiedApple.email.toLowerCase().trim();
+    customerName = verifiedApple.name || 'Apple Customer';
+    googleId = 'apple_' + verifiedApple.uid;
   } else {
-    const authToken = credential || id_token || supabaseToken || token;
-    if (!authToken) {
-      return res.status(401).json({ success: false, message: 'Missing Google authentication token. Sign in through Google is required.' });
+    const authToken = credential || id_token || supabaseToken;
+    if (authToken) {
+      const verified = await verifyGoogleToken(authToken);
+      if (!verified.success || !verified.email) {
+        return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+      }
+      customerEmail = verified.email;
+      customerName = verified.name;
+      googleId = verified.googleId;
+      avatarUrl = verified.avatarUrl;
+    } else {
+      const cookieToken = req.cookies?.marku_customer_session;
+      const cookiePayload = verifyCustomerSessionToken(cookieToken);
+      if (cookiePayload && cookiePayload.email) {
+        customerEmail = String(cookiePayload.email).toLowerCase().trim();
+        customerName = cookiePayload.name || customerEmail.split('@')[0];
+      } else if (token) {
+        const verified = await verifyGoogleToken(token);
+        if (!verified.success || !verified.email) {
+          return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
+        }
+        customerEmail = verified.email;
+        customerName = verified.name;
+        googleId = verified.googleId;
+        avatarUrl = verified.avatarUrl;
+      } else {
+        return res.status(401).json({ success: false, message: 'Missing Google authentication token. Sign in through Google is required.' });
+      }
     }
-    const verified = await verifyGoogleToken(authToken);
-    if (!verified.success || !verified.email) {
-      return res.status(401).json({ success: false, message: 'Google authentication failed: ' + (verified.reason || 'Invalid credential') });
-    }
-    customerEmail = verified.email;
-    customerName = verified.name;
-    googleId = verified.googleId;
-    avatarUrl = verified.avatarUrl;
   }
 
   const shop = await resolveShopBySlug(shopSlug || shopId);
@@ -3371,18 +3395,20 @@ app.post('/api/owner/subscription/select', async (req, res) => {
   if (!ownerId) {
     return res.status(401).json({ success: false, message: 'Authorization required.' });
   }
-  const verifiedToken = verifyOwnerToken(authHeader.split(' ')[1]);
-  if (!verifiedToken) return res.status(401).json({ success: false, message: 'Invalid or expired session.' });
 
   const { plan, paymentReference } = req.body;
   if (!['trial', 'monthly', 'yearly'].includes(plan)) {
     return res.status(400).json({ success: false, message: 'Invalid plan selected.' });
   }
 
-  let durationDays = 7;
-  if (plan === 'monthly') durationDays = 30;
-  if (plan === 'yearly') durationDays = 365;
+  if (plan !== 'trial') {
+    return res.status(402).json({
+      success: false,
+      message: 'Paid plan activation requires verified payment checkout. Contact support or complete payment verification.'
+    });
+  }
 
+  const durationDays = 7;
   const newEndsAt = new Date(Date.now() + durationDays * 86400000).toISOString();
 
   if (supabase) {
@@ -3391,17 +3417,17 @@ app.post('/api/owner/subscription/select', async (req, res) => {
         subscription_plan: plan,
         subscription_status: 'active',
         subscription_ends_at: newEndsAt,
-        payment_reference: paymentReference || ''
-      }).eq('owner_id', verifiedToken.ownerId);
+        payment_reference: paymentReference ? String(paymentReference).slice(0, 128) : ''
+      }).eq('owner_id', ownerId);
     } catch (e) { }
   }
 
   const db = loadLocalDb();
-  const owner = db.owners[verifiedToken.email];
-  if (owner && owner.shopSlug && db.shops[owner.shopSlug]) {
-    db.shops[owner.shopSlug].subscriptionPlan = plan;
-    db.shops[owner.shopSlug].subscriptionStatus = 'active';
-    db.shops[owner.shopSlug].subscriptionEndsAt = newEndsAt;
+  const shop = Object.values(db.shops || {}).find(s => s.ownerId === ownerId);
+  if (shop) {
+    shop.subscriptionPlan = plan;
+    shop.subscriptionStatus = 'active';
+    shop.subscriptionEndsAt = newEndsAt;
     saveLocalDb(db);
   }
 
@@ -4626,9 +4652,12 @@ app.post('/api/claim-stamp', async (req, res) => {
     if (tokenPayload) {
       customerIdentifier = tokenPayload.phone;
     }
-  } else if (phone && phone.trim()) {
-    const rawP = phone.trim();
-    customerIdentifier = rawP.includes('@') ? rawP.toLowerCase() : normalizePhoneNumber(rawP);
+  } else if (req.cookies?.marku_customer_session) {
+    const cookiePayload = verifyCustomerSessionToken(req.cookies.marku_customer_session);
+    if (cookiePayload && cookiePayload.email) {
+      customerIdentifier = String(cookiePayload.email).trim().toLowerCase();
+      if (!customerName && cookiePayload.name) customerName = cookiePayload.name.trim();
+    }
   }
 
   if (!customerIdentifier) {
@@ -5063,9 +5092,30 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
   const rawId = req.params.identifier ? req.params.identifier.trim().toLowerCase() : '';
   const isEmail = rawId.includes('@');
   const cleanId = isEmail ? rawId : normalizePhoneNumber(rawId);
+
+  // Require verified customer session/token matching the requested identifier (or shop owner)
+  const bearer = req.headers?.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7).trim() : null;
+  const cookieSess = verifyCustomerSessionToken(req.cookies?.marku_customer_session);
+  const bearerCustSess = bearer ? verifyCustomerSessionToken(bearer) : null;
+  const bearerOtp = bearer ? verifyCustomerOtpToken(bearer) : null;
+  const bearerAccess = bearer ? verifyUserAccessToken(bearer) : null;
+  const ownerId = await getOwnerIdFromReq(req);
+
+  const authedIdentifier =
+    cookieSess?.email?.toLowerCase() ||
+    bearerCustSess?.email?.toLowerCase() ||
+    bearerOtp?.phone?.toLowerCase() ||
+    bearerAccess?.email?.toLowerCase() ||
+    null;
+
   const shop = await resolveShopBySlug(req.params.shopSlug);
   if (!shop) {
     return res.status(404).json({ success: false, message: 'Shop not found.' });
+  }
+
+  const isShopOwner = ownerId && (shop.owner_id === ownerId || shop.ownerId === ownerId);
+  if (!isShopOwner && (!authedIdentifier || authedIdentifier !== cleanId.toLowerCase())) {
+    return res.status(401).json({ success: false, message: 'Customer authentication required to view this pass.' });
   }
 
   const slug = shop.slug;

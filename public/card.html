@@ -449,7 +449,8 @@
       try {
         const cleanId = (identifier || '').trim();
         const res = await fetch(`/api/customer/${encodeURIComponent(slug)}/${encodeURIComponent(cleanId)}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          credentials: 'include'
         });
         const data = await res.json();
 

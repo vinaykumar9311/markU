@@ -319,7 +319,7 @@
     function showAlert(msg, type = 'emerald') {
       const banner = document.getElementById('statusAlert');
       if (!banner) return;
-      banner.innerHTML = msg;
+      banner.textContent = msg;
       banner.className = type === 'rose'
         ? 'rounded-xl border border-rose-500/40 bg-rose-950/70 text-rose-200 p-3.5 text-xs font-semibold text-center transition-all shadow-md leading-relaxed'
         : type === 'amber'

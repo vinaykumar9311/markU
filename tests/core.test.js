@@ -585,6 +585,31 @@ test('Single Google account cannot register multiple shops or create-shop duplic
         const custJson = await custRes.json();
         assert.equal(custRes.status, 200);
         assert.equal(custJson.success, true);
+
+        // 6. Security checks: Apple spoofing, unauthenticated claim-stamp, unauthenticated pass lookup, unverified paid plan
+        const appleSpoofRes = await fetch(baseUrl + '/api/auth/google/customer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: 'apple', email: 'victim@gmail.com', shopSlug: slug1 })
+        });
+        assert.equal(appleSpoofRes.status, 401);
+
+        const rawClaimRes = await fetch(baseUrl + '/api/claim-stamp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shopSlug: slug1, phone: '+919999999999', token: 'fake_qr' })
+        });
+        assert.equal(rawClaimRes.status, 401);
+
+        const unauthCardRes = await fetch(baseUrl + '/api/customer/' + slug1 + '/' + encodeURIComponent('cust_' + email));
+        assert.equal(unauthCardRes.status, 401);
+
+        const paidPlanRes = await fetch(baseUrl + '/api/owner/subscription/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + firstJson.token },
+          body: JSON.stringify({ plan: 'yearly', paymentReference: 'fake_ref' })
+        });
+        assert.equal(paidPlanRes.status, 402);
       } finally {
         delete db.shops[slug1];
         delete db.shops[slug2];
