@@ -406,19 +406,6 @@
           auto_select: true
         });
 
-        const wrapper = document.getElementById('gsiButtonWrapper');
-        const container = document.getElementById('gsiButtonContainer');
-        if (wrapper && container) {
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            width: 300,
-            text: 'continue_with'
-          });
-          wrapper.classList.remove('hidden');
-        }
-
         // Trigger Google One-Tap prompt
         window.google.accounts.id.prompt();
       } catch (err) {

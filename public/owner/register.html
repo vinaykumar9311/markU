@@ -184,11 +184,6 @@
           Sign Up With Google or Apple
         </div>
 
-        <!-- Google Identity Services Rendered Button -->
-        <div id="gsiButtonWrapper" class="hidden pt-1 flex justify-center">
-          <div id="gsiButtonContainer"></div>
-        </div>
-
         <!-- Social Buttons -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button type="button" id="launchGoogleBtn" onclick="triggerGoogleSignUp()"
@@ -297,19 +292,6 @@
           callback: handleGoogleCredentialResponse,
           auto_select: false
         });
-        const container = document.getElementById('gsiButtonContainer');
-        const wrapper = document.getElementById('gsiButtonWrapper');
-        if (container) {
-          container.innerHTML = '';
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            text: 'signup_with',
-            width: 300
-          });
-          if (wrapper) wrapper.classList.remove('hidden');
-        }
         gsiInitialized = true;
       } catch {}
     }

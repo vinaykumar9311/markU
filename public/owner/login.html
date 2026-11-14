@@ -105,11 +105,6 @@
 
     <!-- Primary OAuth Buttons (Google & Apple Only) -->
     <div id="oauthSection" class="space-y-3 pt-1">
-      <!-- GIS Button Container -->
-      <div id="gsiButtonWrapper" class="hidden w-full flex justify-center mb-1">
-        <div id="gsiButtonContainer"></div>
-      </div>
-
       <!-- Prominent Branded Google Button -->
       <button type="button" id="googleLoginBtn" onclick="triggerGoogleSignIn()"
         class="w-full btn-google font-bold py-3 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-md">
@@ -226,19 +221,6 @@
           callback: handleGoogleCredentialResponse,
           auto_select: false
         });
-        const container = document.getElementById('gsiButtonContainer');
-        const wrapper = document.getElementById('gsiButtonWrapper');
-        if (container) {
-          container.innerHTML = '';
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            text: 'continue_with',
-            width: 300
-          });
-          if (wrapper) wrapper.classList.remove('hidden');
-        }
         gsiInitialized = true;
       } catch (err) {}
     }

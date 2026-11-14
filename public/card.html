@@ -318,19 +318,6 @@
           auto_select: true
         });
 
-        const wrapper = document.getElementById('cardGsiWrapper');
-        const container = document.getElementById('cardGsiContainer');
-        if (wrapper && container) {
-          window.google.accounts.id.renderButton(container, {
-            theme: 'filled_black',
-            size: 'large',
-            shape: 'pill',
-            width: 300,
-            text: 'continue_with'
-          });
-          wrapper.classList.remove('hidden');
-        }
-
         window.google.accounts.id.prompt();
       } catch (err) {
         console.warn('Card GIS notice:', err.message);
