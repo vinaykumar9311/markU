@@ -144,8 +144,10 @@ if (sbUrl && sbKey) {
   console.log('[Supabase] Notice: Credentials not found in .env. Running in local multi-tenant test mode.');
 }
 
-// Local persistent store fallback (with safe in-memory cache)
-const LOCAL_DB_FILE = path.join(__dirname, 'database.json');
+// Local persistent store fallback (with safe in-memory cache; uses /tmp on Vercel)
+const LOCAL_DB_FILE = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'marku-database.json')
+  : path.join(__dirname, 'database.json');
 let memoryDb = null;
 
 function loadLocalDb() {
@@ -439,7 +441,7 @@ function generateShopQrToken(shopSecret) {
     .update(payload)
     .digest('hex')
     .slice(0, 16);
-  
+
   const expiresAt = now + QR_LIFETIME_MS;
   return {
     token: `${payload}.${hash}`,
@@ -480,7 +482,7 @@ function getPublicTunnelUrl() {
     try {
       const url = fs.readFileSync(tunnelFile, 'utf8').trim();
       if (url && url.startsWith('http')) return url;
-    } catch {}
+    } catch { }
   }
   return null;
 }
@@ -664,7 +666,7 @@ async function getOwnerIdFromReq(req) {
           if (metaRole === 'customer') return null;
           return user.id;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -727,7 +729,7 @@ async function verifyGoogleToken(idToken) {
           emailVerified: true
         };
       }
-    } catch {}
+    } catch { }
   }
 
   // 3. Fallback for unit testing mode ONLY (Strictly disabled in local and production environments)
@@ -748,7 +750,7 @@ async function verifyGoogleToken(idToken) {
           };
         }
       }
-    } catch {}
+    } catch { }
   }
 
   return { success: false, reason: 'Invalid or unverified Google credential. Cryptographic token signature check failed.' };
@@ -939,7 +941,7 @@ app.post('/api/auth/google/owner', async (req, res) => {
         device_fingerprint: deviceFingerprint || null,
         expires_at: new Date(refreshExp).toISOString()
       });
-    } catch {}
+    } catch { }
   }
   db.sessions[tokenId] = { userId: user.id, deviceFingerprint, expiresAt: refreshExp };
   saveLocalDb(db);
@@ -1141,7 +1143,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
         try {
           const { data: used } = await supabase.from('used_tokens').select('id').eq('shop_id', shop.id).eq('token', qrToken).maybeSingle();
           if (used) tokenBurned = true;
-        } catch {}
+        } catch { }
       }
       if (!tokenBurned && db.usedTokens[`${shop.id}_${qrToken}`]) tokenBurned = true;
 
@@ -1285,7 +1287,7 @@ app.get('/api/customer/session-status', async (req, res) => {
     try {
       const { data } = await supabase.from('customer_cards').select('*').eq('shop_id', shop.id).eq('email', payload.email).maybeSingle();
       if (data) card = data;
-    } catch {}
+    } catch { }
   }
   if (!card) {
     const localKey = `${shop.slug || shop.id}_${payload.email}`;
@@ -1365,7 +1367,7 @@ app.get('/api/auth/me', async (req, res) => {
       if (suUser) user = suUser;
       const { data: suShop } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
       if (suShop) shop = suShop;
-    } catch {}
+    } catch { }
   }
 
   if (!user && db.users) {
@@ -1439,11 +1441,11 @@ async function dispatchEmailOtp(cleanEmail, redirectBase) {
       hasGmail
         ? { service: 'gmail', auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD } }
         : {
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT || '587', 10),
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-          }
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || '587', 10),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+        }
     );
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || process.env.GMAIL_USER || process.env.SMTP_USER,
@@ -1462,7 +1464,7 @@ async function dispatchEmailOtp(cleanEmail, redirectBase) {
   if (supabase.auth.admin) {
     try {
       await supabase.auth.admin.createUser({ email: cleanEmail, email_confirm: false });
-    } catch {}
+    } catch { }
   }
 
   const { error } = await supabase.auth.signInWithOtp({
@@ -1648,7 +1650,7 @@ app.post('/api/owner/register', async (req, res) => {
   // 1. Enforce Strict Account Uniqueness (1 Phone = 1 Shop Account)
   if (verifiedPhone) {
     const cleanDigits = verifiedPhone.replace(/[^0-9]/g, '');
-    const existingPhoneOwner = db.owners[verifiedPhone] || Object.values(db.owners).find(o => 
+    const existingPhoneOwner = db.owners[verifiedPhone] || Object.values(db.owners).find(o =>
       matchPhone(o.phone, verifiedPhone) ||
       (o.email && o.email.startsWith(cleanDigits))
     );
@@ -1700,7 +1702,7 @@ app.post('/api/owner/register', async (req, res) => {
             email_confirm: true
           });
           if (adminData && adminData.user) userId = adminData.user.id;
-        } catch (e) {}
+        } catch (e) { }
         if (!userId) {
           try {
             const { data: listData } = await supabase.auth.admin.listUsers();
@@ -1709,7 +1711,7 @@ app.post('/api/owner/register', async (req, res) => {
               userId = existing.id;
               await supabase.auth.admin.updateUserById(existing.id, { password: ownerPassword, email_confirm: true });
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
 
@@ -2191,7 +2193,7 @@ app.post('/api/owner/verify-otp', async (req, res) => {
 
   // Check if owner already has a shop account
   const db = loadLocalDb();
-  let owner = Object.values(db.owners).find(o => 
+  let owner = Object.values(db.owners).find(o =>
     matchPhone(o.phone, cleanPhone) ||
     (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
   );
@@ -2230,7 +2232,7 @@ app.post('/api/owner/verify-otp', async (req, res) => {
           const { data: sSlug } = await supabase.from('shops').select('*').eq('slug', owner.shopSlug).maybeSingle();
           if (sSlug) shop = sSlug;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!shop && owner.shopSlug && db.shops[owner.shopSlug]) {
       shop = db.shops[owner.shopSlug];
@@ -2313,7 +2315,7 @@ app.post('/api/owner/phone-register', async (req, res) => {
       try {
         const { data: suShop } = await supabase.from('shops').select('id, name, slug').eq('owner_id', existingOwner.id).maybeSingle();
         if (suShop) existingShop = suShop;
-      } catch (e) {}
+      } catch (e) { }
     }
     if (existingShop) {
       return res.status(409).json({
@@ -2344,7 +2346,7 @@ app.post('/api/owner/phone-register', async (req, res) => {
           });
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (db.shops[cleanSlug]) {
@@ -2357,7 +2359,7 @@ app.post('/api/owner/phone-register', async (req, res) => {
       if (existingSlug) {
         return res.status(409).json({ success: false, message: `The kiosk URL /shop/${cleanSlug} is already taken. Please choose another slug.` });
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const shopSecret = crypto.randomBytes(32).toString('hex');
@@ -2458,7 +2460,7 @@ app.post('/api/owner/forgot-password/send-otp', async (req, res) => {
 
   // Check if owner actually exists with this number
   const db = loadLocalDb();
-  let owner = Object.values(db.owners).find(o => 
+  let owner = Object.values(db.owners).find(o =>
     matchPhone(o.phone, cleanPhone) ||
     (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
   );
@@ -2473,7 +2475,7 @@ app.post('/api/owner/forgot-password/send-otp', async (req, res) => {
       if (suOwner) {
         owner = suOwner;
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!owner) {
@@ -2564,7 +2566,7 @@ app.post('/api/owner/reset-password', async (req, res) => {
   const db = loadLocalDb();
 
   // Find owner in local DB
-  let owner = Object.values(db.owners).find(o => 
+  let owner = Object.values(db.owners).find(o =>
     matchPhone(o.phone, cleanPhone) ||
     (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
   );
@@ -2609,7 +2611,7 @@ app.post('/api/owner/reset-password', async (req, res) => {
     try {
       const { data: s } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
       if (s) shop = s;
-    } catch (e) {}
+    } catch (e) { }
   }
   if (!shop) {
     shop = Object.values(db.shops).find(s => s.ownerId === ownerId || s.owner_id === ownerId);
@@ -2652,7 +2654,7 @@ app.post('/api/owner/login', async (req, res) => {
     ownerOtpStore.delete(rawP);
 
     const db = loadLocalDb();
-    let owner = Object.values(db.owners).find(o => 
+    let owner = Object.values(db.owners).find(o =>
       matchPhone(o.phone, cleanPhone) ||
       (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
     );
@@ -2675,7 +2677,7 @@ app.post('/api/owner/login', async (req, res) => {
           };
           db.owners[cleanPhone] = owner;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (!owner) {
@@ -2698,7 +2700,7 @@ app.post('/api/owner/login', async (req, res) => {
           const { data: sSlug } = await supabase.from('shops').select('*').eq('slug', owner.shopSlug).maybeSingle();
           if (sSlug) shop = sSlug;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!shop && owner.shopSlug && db.shops[owner.shopSlug]) {
       shop = db.shops[owner.shopSlug];
@@ -2739,7 +2741,7 @@ app.post('/api/owner/login', async (req, res) => {
     if (isEmail) {
       owner = db.owners[cleanEmail];
     } else {
-      owner = Object.values(db.owners).find(o => 
+      owner = Object.values(db.owners).find(o =>
         matchPhone(o.phone, cleanPhone) ||
         (o.email && (o.email.startsWith(cleanDigits) || o.email.startsWith(last10)))
       );
@@ -2764,7 +2766,7 @@ app.post('/api/owner/login', async (req, res) => {
           };
           if (cleanPhone) db.owners[cleanPhone] = owner;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (owner && owner.passwordHash && verifyPassword(cleanPass, owner.passwordHash)) {
@@ -2809,7 +2811,7 @@ app.post('/api/owner/login', async (req, res) => {
         try {
           const { data: s } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
           if (s) shop = s;
-        } catch (e) {}
+        } catch (e) { }
       }
       if (!shop) {
         shop = Object.values(db.shops).find(s => s.ownerId === owner.id || s.owner_id === owner.id);
@@ -2883,7 +2885,7 @@ app.post('/api/owner/login', async (req, res) => {
             } : null
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     return res.status(401).json({ success: false, message: 'Invalid credentials. Please check your mobile/email or password.' });
@@ -2977,7 +2979,7 @@ app.post('/api/owner/google-auth', async (req, res) => {
         const { data: ownerShop } = await supabase.from('shops').select('*').eq('owner_id', owner.id).maybeSingle();
         if (ownerShop) shop = ownerShop;
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!owner) {
@@ -3067,7 +3069,7 @@ app.get('/api/owner/subscription', async (req, res) => {
     try {
       const { data } = await supabase.from('shops').select('*').eq('owner_id', ownerId).maybeSingle();
       if (data) shop = data;
-    } catch (e) {}
+    } catch (e) { }
   }
   if (!shop) {
     const db = loadLocalDb();
@@ -3127,7 +3129,7 @@ app.post('/api/owner/subscription/select', async (req, res) => {
         subscription_ends_at: newEndsAt,
         payment_reference: paymentReference || ''
       }).eq('owner_id', verifiedToken.ownerId);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const db = loadLocalDb();
@@ -3160,7 +3162,7 @@ app.get('/api/shop/:slug/qr-status', async (req, res) => {
     try {
       const { data } = await supabase.from('used_tokens').select('token').eq('token', token).maybeSingle();
       if (data) isUsed = true;
-    } catch (e) {}
+    } catch (e) { }
   }
   if (!isUsed) {
     const db = loadLocalDb();
@@ -3428,7 +3430,7 @@ app.post('/api/owner/create-shop', async (req, res) => {
             google_review_url: cleanReviewUrl,
             instagram_url: cleanInstaUrl
           }).eq('id', newShop.id);
-        } catch (e) {}
+        } catch (e) { }
       }
     } catch (err) {
       return res.status(500).json({ success: false, message: err.message });
@@ -3694,7 +3696,7 @@ app.delete('/api/owner/account', async (req, res) => {
       if (supabase.auth.admin) {
         try {
           await supabase.auth.admin.deleteUser(ownerId);
-        } catch (e) {}
+        } catch (e) { }
       }
     } catch (err) {
       console.error('[Delete Account] Supabase error:', err.message);
@@ -3782,7 +3784,7 @@ app.get('/api/shop/:slug/live-qr', async (req, res) => {
     const qrData = generateShopQrToken(shopSecret);
     const rawHost = req.get('host') || `localhost:${PORT}`;
     const publicTunnel = getPublicTunnelUrl();
-    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https' || rawHost.includes('trycloudflare.com') || rawHost.includes('onrender.com');
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https' || rawHost.includes('trycloudflare.com') || rawHost.includes('onrender.com') || rawHost.includes('vercel.app');
     const protocol = isHttps ? 'https' : 'http';
 
     let targetHost = rawHost;
@@ -4186,7 +4188,7 @@ app.post('/api/claim-stamp', async (req, res) => {
             timestamp: now
           });
           saveLocalDb(db);
-        } catch (cacheErr) {}
+        } catch (cacheErr) { }
 
         return res.json({
           success: true,
@@ -4333,7 +4335,7 @@ app.post('/api/claim-stamp', async (req, res) => {
           timestamp: now
         });
         saveLocalDb(db);
-      } catch (cacheErr) {}
+      } catch (cacheErr) { }
 
       return res.json({
         success: true,
@@ -4468,7 +4470,7 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
       }
       const { data } = await query.maybeSingle();
       card = data;
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (!card) {
