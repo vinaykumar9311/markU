@@ -1214,7 +1214,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
     customerName = name || 'Apple Customer';
     googleId = 'apple_' + crypto.createHash('sha256').update(customerEmail).digest('hex').slice(0, 16);
   } else {
-    const authToken = credential || id_token || token || supabaseToken;
+    const authToken = credential || id_token || supabaseToken || token;
     if (!authToken) {
       return res.status(401).json({ success: false, message: 'Missing Google authentication token. Sign in through Google is required.' });
     }

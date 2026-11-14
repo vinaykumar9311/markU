@@ -527,6 +527,9 @@
 
           renderLiveCard(data.shop, data.card, data.cooldownActive, data.secondsRemaining);
         } else {
+          if (res.status === 401 && payload && payload.supabaseToken && supabaseClient) {
+            try { await supabaseClient.auth.signOut({ scope: 'local' }); } catch {}
+          }
           showAlert(data.message || 'Could not verify stamp.', 'rose');
           if (data.message && data.message.includes('expired')) {
             document.getElementById('registerBox').classList.add('hidden');

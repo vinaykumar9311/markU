@@ -573,6 +573,18 @@ test('Single Google account cannot register multiple shops or create-shop duplic
         assert.equal(loginRes.status, 200);
         assert.equal(loginJson.isNew, false);
         assert.equal(loginJson.shop.slug, slug1);
+
+        // 5. Customer auth with both supabaseToken and QR token uses supabaseToken for auth
+        const custJwtPayload = Buffer.from(JSON.stringify({ sub: 'cust_' + Date.now(), email: 'cust_' + email, email_verified: true, name: 'Cust' })).toString('base64url');
+        const custGoogleJwt = header + '.' + custJwtPayload + '.sig';
+        const custRes = await fetch(baseUrl + '/api/auth/google/customer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supabaseToken: custGoogleJwt, token: 'qr_token_not_jwt', shopSlug: slug1 })
+        });
+        const custJson = await custRes.json();
+        assert.equal(custRes.status, 200);
+        assert.equal(custJson.success, true);
       } finally {
         delete db.shops[slug1];
         delete db.shops[slug2];
