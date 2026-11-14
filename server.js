@@ -154,7 +154,7 @@ function loadLocalDb() {
   if (memoryDb) return memoryDb;
   try {
     if (!fs.existsSync(LOCAL_DB_FILE)) {
-      const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], users: {}, sessions: {} };
+      const init = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], rewardClaims: [], users: {}, sessions: {} };
       try {
         fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(init, null, 2));
       } catch (writeErr) {
@@ -169,13 +169,14 @@ function loadLocalDb() {
     if (!data.customerCards) data.customerCards = {};
     if (!data.usedTokens) data.usedTokens = {};
     if (!data.history) data.history = [];
+    if (!Array.isArray(data.rewardClaims)) data.rewardClaims = [];
     if (!data.users) data.users = {};
     if (!data.sessions) data.sessions = {};
     memoryDb = data;
     return memoryDb;
   } catch (err) {
     if (!memoryDb) {
-      memoryDb = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], users: {}, sessions: {} };
+      memoryDb = { shops: {}, owners: {}, customerCards: {}, usedTokens: {}, history: [], rewardClaims: [], users: {}, sessions: {} };
     }
     return memoryDb;
   }
@@ -402,6 +403,178 @@ function matchPhone(p1, p2) {
   if (d1 === d2) return true;
   if (d1.length >= 10 && d2.length >= 10 && d1.slice(-10) === d2.slice(-10)) return true;
   return false;
+}
+
+const REWARD_CLAIM_TTL_MS = 24 * 3600 * 1000;
+const REWARD_CODE_MAX_ATTEMPTS = 5;
+
+function normalizeWhatsAppNumber(raw) {
+  if (raw === undefined || raw === null) return '';
+  const str = String(raw).trim();
+  if (!str) return '';
+  const normalized = normalizePhoneNumber(str);
+  const digits = normalized.replace(/[^0-9]/g, '');
+  if (digits.length < 8 || digits.length > 15) return null;
+  return digits;
+}
+
+function buildWhatsAppUrl(whatsappNumber, messageText) {
+  const digits = normalizeWhatsAppNumber(whatsappNumber);
+  if (!digits) return '';
+  return `https://wa.me/${digits}?text=${encodeURIComponent(String(messageText || ''))}`;
+}
+
+function generateRedeemCode() {
+  return crypto.randomInt(100000, 1000000).toString();
+}
+
+async function getPendingRewardClaim(shop, customerIdentifier) {
+  if (!shop || !customerIdentifier) return null;
+  const cleanId = String(customerIdentifier).trim().toLowerCase();
+  const nowIso = new Date().toISOString();
+
+  if (supabase && shop.id) {
+    try {
+      const { data } = await supabase
+        .from('reward_claims')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .eq('customer_identifier', cleanId)
+        .eq('status', 'PENDING')
+        .gt('expires_at', nowIso)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) return data;
+    } catch { }
+  }
+
+  const db = loadLocalDb();
+  const now = Date.now();
+  return (db.rewardClaims || []).find(c =>
+    (c.shopId === shop.id || c.shopSlug === shop.slug) &&
+    String(c.customerIdentifier || '').toLowerCase() === cleanId &&
+    c.status === 'PENDING' &&
+    new Date(c.expiresAt).getTime() > now
+  ) || null;
+}
+
+async function createOrGetPendingRewardClaim({ shop, cardId, customerIdentifier, customerName }) {
+  const cleanId = String(customerIdentifier).trim().toLowerCase();
+  const existing = await getPendingRewardClaim(shop, cleanId);
+  if (existing) return existing;
+
+  const code = generateRedeemCode();
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const expiresAtIso = new Date(now + REWARD_CLAIM_TTL_MS).toISOString();
+  const claimId = crypto.randomUUID();
+  const cleanName = (customerName || 'Rewards Member').trim();
+
+  const localClaim = {
+    id: claimId,
+    shopId: shop.id,
+    shopSlug: shop.slug,
+    cardId: cardId || null,
+    customerIdentifier: cleanId,
+    customerName: cleanName,
+    code,
+    status: 'PENDING',
+    failedAttempts: 0,
+    createdAt: nowIso,
+    expiresAt: expiresAtIso,
+    confirmedAt: null
+  };
+
+  if (supabase && shop.id) {
+    try {
+      // Expire any stale pending/locked claims for this customer before inserting fresh one
+      await supabase
+        .from('reward_claims')
+        .update({ status: 'EXPIRED' })
+        .eq('shop_id', shop.id)
+        .eq('customer_identifier', cleanId)
+        .eq('status', 'PENDING');
+
+      const { data: inserted, error } = await supabase
+        .from('reward_claims')
+        .insert({
+          id: claimId,
+          shop_id: shop.id,
+          card_id: cardId || null,
+          customer_identifier: cleanId,
+          customer_name: cleanName,
+          code,
+          status: 'PENDING',
+          failed_attempts: 0,
+          created_at: nowIso,
+          expires_at: expiresAtIso
+        })
+        .select()
+        .single();
+      if (!error && inserted) {
+        const db = loadLocalDb();
+        db.rewardClaims = (db.rewardClaims || []).filter(c => !(c.shopId === shop.id && c.customerIdentifier === cleanId && c.status === 'PENDING'));
+        db.rewardClaims.unshift(localClaim);
+        saveLocalDb(db);
+        return inserted;
+      }
+    } catch { }
+  }
+
+  const db = loadLocalDb();
+  if (!Array.isArray(db.rewardClaims)) db.rewardClaims = [];
+  db.rewardClaims.forEach(c => {
+    if ((c.shopId === shop.id || c.shopSlug === shop.slug) && c.customerIdentifier === cleanId && c.status === 'PENDING') {
+      c.status = 'EXPIRED';
+    }
+  });
+  db.rewardClaims.unshift(localClaim);
+  saveLocalDb(db);
+  return localClaim;
+}
+
+async function listPendingRewardClaims(shop) {
+  if (!shop) return [];
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  if (supabase && shop.id) {
+    try {
+      const { data } = await supabase
+        .from('reward_claims')
+        .select('id, customer_identifier, customer_name, code, status, failed_attempts, created_at, expires_at')
+        .eq('shop_id', shop.id)
+        .eq('status', 'PENDING')
+        .gt('expires_at', nowIso)
+        .order('created_at', { ascending: false })
+        .limit(25);
+      if (Array.isArray(data) && data.length > 0) {
+        return data.map(c => ({
+          id: c.id,
+          customerIdentifier: c.customer_identifier,
+          customerName: c.customer_name || 'Member',
+          code: c.code,
+          status: c.status,
+          createdAt: c.created_at,
+          expiresAt: c.expires_at
+        }));
+      }
+    } catch { }
+  }
+
+  const db = loadLocalDb();
+  return (db.rewardClaims || [])
+    .filter(c => (c.shopId === shop.id || c.shopSlug === shop.slug) && c.status === 'PENDING' && new Date(c.expiresAt).getTime() > now)
+    .map(c => ({
+      id: c.id,
+      customerIdentifier: c.customerIdentifier,
+      customerName: c.customerName || 'Member',
+      code: c.code,
+      status: c.status,
+      createdAt: c.createdAt,
+      expiresAt: c.expiresAt
+    }));
 }
 
 async function resolveShopBySlug(rawSlug) {
@@ -760,7 +933,7 @@ async function verifyGoogleToken(idToken) {
 // A. SHOP OWNER GOOGLE AUTH HANDLER (/api/auth/google/owner)
 // --------------------------------------------------------------------
 app.post('/api/auth/google/owner', async (req, res) => {
-  const { credential, id_token, token, supabaseToken, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, deviceFingerprint } = req.body;
+  const { credential, id_token, token, supabaseToken, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, whatsappNumber, deviceFingerprint } = req.body;
   const authToken = credential || id_token || token || supabaseToken;
 
   if (!authToken) {
@@ -872,6 +1045,7 @@ app.post('/api/auth/google/owner', async (req, res) => {
     const target = parseInt(stampsTarget) || 10;
     const cooldown = parseFloat(cooldownHours) || 12;
     const reward = (rewardDescription && rewardDescription.trim()) ? rewardDescription.trim() : '1 Free Item';
+    const cleanWhatsapp = normalizeWhatsAppNumber(whatsappNumber) || '';
 
     const newShopData = {
       id: shopId,
@@ -881,6 +1055,7 @@ app.post('/api/auth/google/owner', async (req, res) => {
       stamps_target: target,
       reward_description: reward,
       cooldown_hours: cooldown,
+      whatsapp_number: cleanWhatsapp,
       secret_key: shopSecret,
       subscription_plan: 'trial',
       subscription_status: 'active',
@@ -906,6 +1081,7 @@ app.post('/api/auth/google/owner', async (req, res) => {
       stampsTarget: target,
       rewardDescription: reward,
       cooldownHours: cooldown,
+      whatsappNumber: cleanWhatsapp,
       secretKey: shopSecret,
       subscriptionPlan: 'trial',
       subscriptionStatus: 'active',
@@ -1065,6 +1241,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
 
   // 2. Fetch or Create customer card for this specific shop
   let card = null;
+  let isNewCard = false;
   if (supabase && shop.id) {
     try {
       const { data: existingCard } = await supabase
@@ -1077,6 +1254,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
       if (existingCard) {
         card = existingCard;
       } else {
+        isNewCard = true;
         const { data: newCard } = await supabase
           .from('customer_cards')
           .insert({
@@ -1105,6 +1283,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
     if (db.customerCards[localCardKey]) {
       card = db.customerCards[localCardKey];
     } else {
+      isNewCard = true;
       card = {
         id: crypto.randomUUID(),
         shop_id: shop.id,
@@ -1124,6 +1303,8 @@ app.post('/api/auth/google/customer', async (req, res) => {
   // 3. Process Stamp Claim if counter QR token was passed
   let stampAwarded = false;
   let rewardUnlocked = false;
+  let rewardPending = false;
+  let activePendingClaim = await getPendingRewardClaim(shop, customerEmail);
   let claimMessage = 'Welcome to ' + shop.name + '!';
   let cooldownActive = false;
   let secondsRemaining = 0;
@@ -1133,7 +1314,21 @@ app.post('/api/auth/google/customer', async (req, res) => {
   const cooldownMs = cooldownHours * 3600 * 1000;
   const now = Date.now();
 
-  if (qrToken && qrToken.trim()) {
+  if (activePendingClaim || (card.stamps || 0) >= stampsTarget) {
+    if (!activePendingClaim) {
+      activePendingClaim = await createOrGetPendingRewardClaim({
+        shop,
+        cardId: card.id,
+        customerIdentifier: customerEmail,
+        customerName
+      });
+    }
+    rewardUnlocked = true;
+    rewardPending = true;
+    if (qrToken && qrToken.trim()) {
+      claimMessage = `Reward ready! Show 6-digit code ${activePendingClaim.code} to the shop owner to redeem.`;
+    }
+  } else if (qrToken && qrToken.trim()) {
     const validation = validateShopQrToken(qrToken, shop.secretKey || shop.secret_key);
     if (!validation.valid) {
       claimMessage = 'QR code expired. The counter screen has already generated a fresh code for you!';
@@ -1162,14 +1357,19 @@ app.post('/api/auth/google/customer', async (req, res) => {
 
         if (!cooldownActive) {
           stampAwarded = true;
-          let currentStamps = (card.stamps || 0) + 1;
+          let currentStamps = Math.min((card.stamps || 0) + 1, stampsTarget);
           let completed = card.completed_cards || 0;
 
           if (currentStamps >= stampsTarget) {
             rewardUnlocked = true;
-            completed += 1;
-            currentStamps = 0;
-            claimMessage = `🎉 Reward Unlocked! You reached ${stampsTarget} stamps and earned: ${shop.rewardDescription || shop.reward_description || '1 Free Item'}!`;
+            rewardPending = true;
+            activePendingClaim = await createOrGetPendingRewardClaim({
+              shop,
+              cardId: card.id,
+              customerIdentifier: customerEmail,
+              customerName
+            });
+            claimMessage = `🎉 All ${stampsTarget} stamps collected! Show 6-digit code ${activePendingClaim.code} to the shop owner to claim: ${shop.rewardDescription || shop.reward_description || '1 Free Item'}!`;
           } else {
             claimMessage = `🎉 Stamp collected! You have ${currentStamps} of ${stampsTarget} stamps.`;
           }
@@ -1198,7 +1398,7 @@ app.post('/api/auth/google/customer', async (req, res) => {
                 card_id: card.id,
                 phone: customerEmail,
                 customer_name: customerName,
-                action_type: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+                action_type: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
                 stamps_at_point: currentStamps
               });
             } catch (err) {
@@ -1210,9 +1410,10 @@ app.post('/api/auth/google/customer', async (req, res) => {
           db.customerCards[localCardKey] = card;
           db.history.push({
             shopId: shop.id,
+            shopSlug: shop.slug,
             phone: customerEmail,
             customerName: customerName,
-            actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+            actionType: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
             stampsAtPoint: currentStamps,
             timestamp: now
           });
@@ -1226,10 +1427,17 @@ app.post('/api/auth/google/customer', async (req, res) => {
   const customerSessionToken = signCustomerSessionToken(user.id, customerEmail, shop.id, deviceFingerprint);
   setCustomerCookie(res, customerSessionToken, isSecure);
 
+  const localShopInfo = db.shops?.[shop.slug] || {};
+  const shopWhatsapp = shop.whatsapp_number || shop.whatsappNumber || localShopInfo.whatsappNumber || '';
+
   return res.json({
     success: true,
+    isNewCard,
     stampAwarded,
     rewardUnlocked,
+    rewardPending,
+    redeemCode: activePendingClaim ? activePendingClaim.code : null,
+    redeemExpiresAt: activePendingClaim ? (activePendingClaim.expires_at || activePendingClaim.expiresAt) : null,
     cooldownActive,
     secondsRemaining,
     message: claimMessage,
@@ -1237,11 +1445,15 @@ app.post('/api/auth/google/customer', async (req, res) => {
     user: { id: user.id, email: customerEmail, name: customerName, avatarUrl },
     card: {
       id: card.id,
+      email: customerEmail,
+      name: customerName,
       stamps: card.stamps || 0,
       completedCards: card.completed_cards || 0,
       lastStampAt: card.last_stamp_at,
       stampsTarget,
-      rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item'
+      rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item',
+      pendingRedeemCode: activePendingClaim ? activePendingClaim.code : null,
+      redeemExpiresAt: activePendingClaim ? (activePendingClaim.expires_at || activePendingClaim.expiresAt) : null
     },
     shop: {
       id: shop.id,
@@ -1249,7 +1461,8 @@ app.post('/api/auth/google/customer', async (req, res) => {
       slug: shop.slug,
       stampsTarget,
       rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item',
-      cooldownHours
+      cooldownHours,
+      whatsappNumber: shopWhatsapp
     }
   });
 });
@@ -1306,21 +1519,28 @@ app.get('/api/customer/session-status', async (req, res) => {
     }
   }
 
+  const pendingClaim = await getPendingRewardClaim(shop, payload.email);
+  const localShopInfo = db.shops?.[shop.slug] || {};
+  const shopWhatsapp = shop.whatsapp_number || shop.whatsappNumber || localShopInfo.whatsappNumber || '';
+
   return res.json({
     authenticated: true,
     user: { id: payload.customerId, email: payload.email },
     card: card ? {
       stamps: card.stamps || 0,
       completedCards: card.completed_cards || 0,
-      lastStampAt: card.last_stamp_at
-    } : { stamps: 0, completedCards: 0, lastStampAt: null },
+      lastStampAt: card.last_stamp_at,
+      pendingRedeemCode: pendingClaim ? pendingClaim.code : null,
+      redeemExpiresAt: pendingClaim ? (pendingClaim.expires_at || pendingClaim.expiresAt) : null
+    } : { stamps: 0, completedCards: 0, lastStampAt: null, pendingRedeemCode: null, redeemExpiresAt: null },
     shop: {
       id: shop.id,
       name: shop.name,
       slug: shop.slug,
       stampsTarget: shop.stampsTarget || shop.stamps_target || 10,
       rewardDescription: shop.rewardDescription || shop.reward_description || '1 Free Item',
-      cooldownHours
+      cooldownHours,
+      whatsappNumber: shopWhatsapp
     },
     inCooldown,
     secondsRemaining
@@ -3277,7 +3497,9 @@ app.get('/api/owner/dashboard', async (req, res) => {
       const localShop = db.shops[activeShop.slug] || {};
       const googleReviewUrl = activeShop.google_review_url || activeShop.googleReviewUrl || localShop.googleReviewUrl || '';
       const instagramUrl = activeShop.instagram_url || activeShop.instagramUrl || localShop.instagramUrl || '';
+      const whatsappNumber = activeShop.whatsapp_number || activeShop.whatsappNumber || localShop.whatsappNumber || '';
       const logoUrl = activeShop.logo_url || activeShop.logoUrl || localShop.logoUrl || '';
+      const pendingRewards = await listPendingRewardClaims(activeShop);
 
       const shopsSummary = combinedShops.map(s => {
         const loc = db.shops[s.slug] || {};
@@ -3290,6 +3512,7 @@ app.get('/api/owner/dashboard', async (req, res) => {
           stampsTarget: s.stamps_target || s.stampsTarget || 10,
           googleReviewUrl: s.google_review_url || s.googleReviewUrl || loc.googleReviewUrl || '',
           instagramUrl: s.instagram_url || s.instagramUrl || loc.instagramUrl || '',
+          whatsappNumber: s.whatsapp_number || s.whatsappNumber || loc.whatsappNumber || '',
           logoUrl: s.logo_url || s.logoUrl || loc.logoUrl || ''
         };
       });
@@ -3305,9 +3528,11 @@ app.get('/api/owner/dashboard', async (req, res) => {
           stampsTarget: activeShop.stamps_target || activeShop.stampsTarget || 10,
           googleReviewUrl,
           instagramUrl,
+          whatsappNumber,
           logoUrl
         },
         shops: shopsSummary,
+        pendingRewards,
         metrics: {
           totalCustomers: dedupedCards.length,
           totalStampsIssued: Math.max(totalStampsGiven, dedupedCards.reduce((acc, c) => acc + (c.stamps || 0), 0)),
@@ -3334,6 +3559,7 @@ app.get('/api/owner/dashboard', async (req, res) => {
   if (!activeShop) return res.status(404).json({ success: false, message: 'No shop registered for this account.' });
   const shopCards = Object.values(db.customerCards).filter(c => c.shopSlug === activeShop.slug);
   const shopHistory = db.history.filter(h => h.shopSlug === activeShop.slug);
+  const pendingRewards = await listPendingRewardClaims(activeShop);
 
   return res.json({
     success: true,
@@ -3346,6 +3572,7 @@ app.get('/api/owner/dashboard', async (req, res) => {
       stampsTarget: activeShop.stampsTarget || 10,
       googleReviewUrl: activeShop.googleReviewUrl || '',
       instagramUrl: activeShop.instagramUrl || '',
+      whatsappNumber: activeShop.whatsappNumber || '',
       logoUrl: activeShop.logoUrl || ''
     },
     shops: ownerShops.map(s => ({
@@ -3357,8 +3584,10 @@ app.get('/api/owner/dashboard', async (req, res) => {
       stampsTarget: s.stampsTarget || 10,
       googleReviewUrl: s.googleReviewUrl || '',
       instagramUrl: s.instagramUrl || '',
+      whatsappNumber: s.whatsappNumber || '',
       logoUrl: s.logoUrl || ''
     })),
+    pendingRewards,
     metrics: {
       totalCustomers: shopCards.length,
       totalStampsIssued: shopHistory.filter(h => h.type === 'STAMP_ADDED').length,
@@ -3376,7 +3605,7 @@ app.post('/api/owner/create-shop', async (req, res) => {
     return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
   }
 
-  const { name, slug, rewardDescription, stampsTarget, cooldownHours, googleReviewUrl, instagramUrl } = req.body;
+  const { name, slug, rewardDescription, stampsTarget, cooldownHours, googleReviewUrl, instagramUrl, whatsappNumber } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Shop name is required.' });
   }
@@ -3392,6 +3621,11 @@ app.post('/api/owner/create-shop', async (req, res) => {
   const shopSecret = crypto.randomBytes(32).toString('hex');
   const cleanReviewUrl = (googleReviewUrl || '').trim();
   const cleanInstaUrl = (instagramUrl || '').trim();
+  const cleanWhatsapp = normalizeWhatsAppNumber(whatsappNumber);
+  if (whatsappNumber && String(whatsappNumber).trim() && cleanWhatsapp === null) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid WhatsApp number with country code (8 to 15 digits).' });
+  }
+  const finalWhatsapp = cleanWhatsapp || '';
 
   const db = loadLocalDb();
   if (db.shops[cleanSlug]) {
@@ -3423,12 +3657,13 @@ app.post('/api/owner/create-shop', async (req, res) => {
       }
       createdShop = newShop;
 
-      // Try setting social urls if columns exist
-      if (cleanReviewUrl || cleanInstaUrl) {
+      // Try setting social urls & whatsapp if columns exist
+      if (cleanReviewUrl || cleanInstaUrl || finalWhatsapp) {
         try {
           await supabase.from('shops').update({
             google_review_url: cleanReviewUrl,
-            instagram_url: cleanInstaUrl
+            instagram_url: cleanInstaUrl,
+            whatsapp_number: finalWhatsapp
           }).eq('id', newShop.id);
         } catch (e) { }
       }
@@ -3449,6 +3684,7 @@ app.post('/api/owner/create-shop', async (req, res) => {
       secretKey: shopSecret,
       googleReviewUrl: cleanReviewUrl,
       instagramUrl: cleanInstaUrl,
+      whatsappNumber: finalWhatsapp,
       createdAt: Date.now()
     };
   }
@@ -3464,7 +3700,8 @@ app.post('/api/owner/create-shop', async (req, res) => {
     cooldownHours: cooldown,
     secretKey: shopSecret,
     googleReviewUrl: cleanReviewUrl,
-    instagramUrl: cleanInstaUrl
+    instagramUrl: cleanInstaUrl,
+    whatsappNumber: finalWhatsapp
   };
   saveLocalDb(db);
 
@@ -3479,7 +3716,8 @@ app.post('/api/owner/create-shop', async (req, res) => {
       stampsTarget: targetStamps,
       cooldownHours: cooldown,
       googleReviewUrl: cleanReviewUrl,
-      instagramUrl: cleanInstaUrl
+      instagramUrl: cleanInstaUrl,
+      whatsappNumber: finalWhatsapp
     }
   });
 });
@@ -3497,9 +3735,18 @@ async function handleUpdateSettings(req, res) {
     return res.status(401).json({ success: false, message: 'Invalid or expired session. Please log in again.' });
   }
 
-  const { name, shopSlug, shopId, rewardDescription, stampsTarget, cooldownHours, googleReviewUrl, instagramUrl, logoUrl } = req.body;
+  const { name, shopSlug, shopId, rewardDescription, stampsTarget, cooldownHours, googleReviewUrl, instagramUrl, whatsappNumber, logoUrl } = req.body;
   const cleanName = (typeof name === 'string' && name.trim()) ? name.trim() : undefined;
   const cleanLogoUrl = typeof logoUrl === 'string' ? logoUrl.trim() : undefined;
+
+  let cleanWhatsapp = undefined;
+  if (whatsappNumber !== undefined && whatsappNumber !== null) {
+    const normalizedWa = normalizeWhatsAppNumber(whatsappNumber);
+    if (String(whatsappNumber).trim() && normalizedWa === null) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid WhatsApp number with country code (8 to 15 digits).' });
+    }
+    cleanWhatsapp = normalizedWa || '';
+  }
 
   let targetNum = undefined;
   if (stampsTarget !== undefined && stampsTarget !== null && stampsTarget !== '') {
@@ -3560,6 +3807,7 @@ async function handleUpdateSettings(req, res) {
       const finalCooldown = parsedCooldown !== undefined ? parsedCooldown : (shop.cooldown_hours !== undefined ? shop.cooldown_hours : 7);
       const finalReviewUrl = cleanReviewUrl !== undefined ? cleanReviewUrl : (shop.google_review_url || '');
       const finalInstaUrl = cleanInstagramUrl !== undefined ? cleanInstagramUrl : (shop.instagram_url || '');
+      const finalWhatsapp = cleanWhatsapp !== undefined ? cleanWhatsapp : (shop.whatsapp_number || shop.whatsappNumber || loadLocalDb()?.shops?.[shop.slug]?.whatsappNumber || '');
       const finalLogoUrl = cleanLogoUrl !== undefined ? cleanLogoUrl : (shop.logo_url || shop.logoUrl || loadLocalDb()?.shops?.[shop.slug]?.logoUrl || '');
 
       const updateData = {
@@ -3577,6 +3825,7 @@ async function handleUpdateSettings(req, res) {
             ...updateData,
             google_review_url: finalReviewUrl,
             instagram_url: finalInstaUrl,
+            whatsapp_number: finalWhatsapp,
             logo_url: finalLogoUrl
           })
           .eq('id', shop.id);
@@ -3601,6 +3850,7 @@ async function handleUpdateSettings(req, res) {
         db.shops[shop.slug].cooldownHours = finalCooldown;
         db.shops[shop.slug].googleReviewUrl = finalReviewUrl;
         db.shops[shop.slug].instagramUrl = finalInstaUrl;
+        db.shops[shop.slug].whatsappNumber = finalWhatsapp;
         if (finalLogoUrl !== undefined) db.shops[shop.slug].logoUrl = finalLogoUrl;
         saveLocalDb(db);
       }
@@ -3617,6 +3867,7 @@ async function handleUpdateSettings(req, res) {
           cooldownHours: finalCooldown,
           googleReviewUrl: finalReviewUrl,
           instagramUrl: finalInstaUrl,
+          whatsappNumber: finalWhatsapp,
           logoUrl: finalLogoUrl
         }
       });
@@ -3640,9 +3891,10 @@ async function handleUpdateSettings(req, res) {
   shop.rewardDescription = cleanReward !== undefined ? cleanReward : shop.rewardDescription;
   shop.stampsTarget = targetNum !== undefined ? targetNum : shop.stampsTarget;
   if (cleanLogoUrl !== undefined) shop.logoUrl = cleanLogoUrl;
-  shop.cooldownHours = parsedCooldown;
-  shop.googleReviewUrl = cleanReviewUrl;
-  shop.instagramUrl = cleanInstagramUrl;
+  if (parsedCooldown !== undefined) shop.cooldownHours = parsedCooldown;
+  if (cleanReviewUrl !== undefined) shop.googleReviewUrl = cleanReviewUrl;
+  if (cleanInstagramUrl !== undefined) shop.instagramUrl = cleanInstagramUrl;
+  if (cleanWhatsapp !== undefined) shop.whatsappNumber = cleanWhatsapp;
   saveLocalDb(db);
 
   return res.json({
@@ -3652,11 +3904,12 @@ async function handleUpdateSettings(req, res) {
       id: shop.id,
       name: shop.name,
       slug: shop.slug,
-      rewardDescription: cleanReward,
-      stampsTarget: targetNum,
-      cooldownHours: parsedCooldown,
-      googleReviewUrl: cleanReviewUrl !== undefined ? cleanReviewUrl : (shop.googleReviewUrl || ''),
-      instagramUrl: cleanInstagramUrl !== undefined ? cleanInstagramUrl : (shop.instagramUrl || ''),
+      rewardDescription: shop.rewardDescription,
+      stampsTarget: shop.stampsTarget,
+      cooldownHours: shop.cooldownHours,
+      googleReviewUrl: shop.googleReviewUrl || '',
+      instagramUrl: shop.instagramUrl || '',
+      whatsappNumber: shop.whatsappNumber || '',
       logoUrl: shop.logoUrl || ''
     }
   });
@@ -3731,6 +3984,230 @@ app.delete('/api/owner/account', async (req, res) => {
 });
 
 // --------------------------------------------------------------------
+// --------------------------------------------------------------------
+// 3.3 OWNER 6-DIGIT REWARD VERIFICATION & CUSTOMER REFRESH
+// --------------------------------------------------------------------
+const redeemVerifyAttempts = new Map();
+
+app.post('/api/owner/redeem/verify', async (req, res) => {
+  const ownerId = await getOwnerIdFromReq(req);
+  if (!ownerId) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired owner session. Please log in again.' });
+  }
+
+  const rawCode = String(req.body?.code || '').trim();
+  const requestedSlug = String(req.body?.shopSlug || req.query.shop || '').toLowerCase().trim();
+  if (!/^\d{6}$/.test(rawCode)) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid 6-digit reward code.' });
+  }
+
+  const db = loadLocalDb();
+  let shop = null;
+
+  if (supabase) {
+    try {
+      let query = supabase.from('shops').select('*').eq('owner_id', ownerId);
+      if (requestedSlug) query = query.eq('slug', requestedSlug);
+      const { data } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (data) shop = data;
+    } catch { }
+  }
+  if (!shop) {
+    const ownerShops = Object.values(db.shops || {}).filter(s => s.ownerId === ownerId || s.owner_id === ownerId);
+    shop = (requestedSlug ? ownerShops.find(s => s.slug === requestedSlug) : null) || ownerShops[0] || null;
+  }
+  if (!shop) {
+    return res.status(404).json({ success: false, message: 'Shop not found for this owner account.' });
+  }
+
+  // Anti-brute-force rate limit per shop (5 wrong guesses per 10 mins)
+  const attemptKey = `${shop.id || shop.slug}`;
+  const now = Date.now();
+  const rec = redeemVerifyAttempts.get(attemptKey);
+  if (rec && rec.resetAt > now && rec.count >= REWARD_CODE_MAX_ATTEMPTS) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many invalid code attempts. Wait a few minutes or ask the customer to refresh their card code.'
+    });
+  }
+
+  const nowIso = new Date(now).toISOString();
+  let matchedClaim = null;
+
+  if (supabase && shop.id) {
+    try {
+      const { data: claim } = await supabase
+        .from('reward_claims')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .eq('code', rawCode)
+        .eq('status', 'PENDING')
+        .gt('expires_at', nowIso)
+        .maybeSingle();
+
+      if (claim) {
+        // Atomic single-use confirmation guard (status = 'PENDING')
+        const { data: updatedClaim } = await supabase
+          .from('reward_claims')
+          .update({ status: 'CONFIRMED', confirmed_at: nowIso })
+          .eq('id', claim.id)
+          .eq('status', 'PENDING')
+          .select()
+          .maybeSingle();
+
+        if (!updatedClaim) {
+          return res.status(409).json({ success: false, message: 'This reward code has already been confirmed.' });
+        }
+        matchedClaim = updatedClaim;
+
+        // Reset card stamps to 0 and increment completed_cards
+        const cleanCustId = String(claim.customer_identifier || '').toLowerCase();
+        const { data: card } = await supabase
+          .from('customer_cards')
+          .select('id, completed_cards, name')
+          .eq('shop_id', shop.id)
+          .or(`email.eq.${cleanCustId},phone.eq.${cleanCustId}`)
+          .maybeSingle();
+
+        if (card) {
+          await supabase
+            .from('customer_cards')
+            .update({
+              stamps: 0,
+              completed_cards: (card.completed_cards || 0) + 1,
+              updated_at: nowIso
+            })
+            .eq('id', card.id);
+        }
+
+        await supabase.from('stamp_history').insert({
+          shop_id: shop.id,
+          card_id: card?.id || claim.card_id || null,
+          phone: cleanCustId,
+          customer_name: claim.customer_name || card?.name || 'Member',
+          action_type: 'REWARD_CONFIRMED',
+          stamps_at_point: 0
+        });
+      }
+    } catch (err) {
+      console.warn('[Verify Redeem Supabase Error]:', err.message);
+    }
+  }
+
+  if (!matchedClaim) {
+    const localIdx = (db.rewardClaims || []).findIndex(c =>
+      (c.shopId === shop.id || c.shopSlug === shop.slug) &&
+      c.code === rawCode &&
+      c.status === 'PENDING' &&
+      new Date(c.expiresAt).getTime() > now
+    );
+    if (localIdx !== -1) {
+      matchedClaim = db.rewardClaims[localIdx];
+      matchedClaim.status = 'CONFIRMED';
+      matchedClaim.confirmedAt = nowIso;
+    }
+  } else {
+    const localIdx = (db.rewardClaims || []).findIndex(c => c.id === matchedClaim.id || (c.code === rawCode && c.status === 'PENDING'));
+    if (localIdx !== -1) {
+      db.rewardClaims[localIdx].status = 'CONFIRMED';
+      db.rewardClaims[localIdx].confirmedAt = nowIso;
+    }
+  }
+
+  if (!matchedClaim) {
+    const nextCount = (rec && rec.resetAt > now ? rec.count : 0) + 1;
+    redeemVerifyAttempts.set(attemptKey, { count: nextCount, resetAt: now + 10 * 60 * 1000 });
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid or expired 6-digit reward code.'
+    });
+  }
+
+  // Clear brute-force counter on valid confirmation
+  redeemVerifyAttempts.delete(attemptKey);
+
+  // Sync local card & history
+  const custId = String(matchedClaim.customer_identifier || matchedClaim.customerIdentifier || '').toLowerCase();
+  const localCardKey = `${shop.slug}_${custId}`;
+  if (db.customerCards[localCardKey]) {
+    db.customerCards[localCardKey].stamps = 0;
+    db.customerCards[localCardKey].completedCards = (db.customerCards[localCardKey].completedCards || 0) + 1;
+    db.customerCards[localCardKey].completed_cards = db.customerCards[localCardKey].completedCards;
+  }
+  db.history.unshift({
+    shopSlug: shop.slug,
+    shopId: shop.id,
+    phone: custId,
+    customerName: matchedClaim.customer_name || matchedClaim.customerName || 'Member',
+    actionType: 'REWARD_CONFIRMED',
+    stampsAtPoint: 0,
+    timestamp: now
+  });
+  saveLocalDb(db);
+
+  return res.json({
+    success: true,
+    message: `Reward verified and redeemed for ${matchedClaim.customer_name || matchedClaim.customerName || custId}!`,
+    claim: {
+      id: matchedClaim.id,
+      customerName: matchedClaim.customer_name || matchedClaim.customerName || 'Member',
+      customerIdentifier: custId,
+      rewardDescription: shop.reward_description || shop.rewardDescription || '1 Free Item',
+      confirmedAt: nowIso
+    }
+  });
+});
+
+app.post('/api/customer/redeem/refresh', async (req, res) => {
+  const cookieToken = req.cookies?.marku_customer_session || req.headers?.authorization?.replace(/^Bearer /i, '');
+  const payload = verifyCustomerSessionToken(cookieToken);
+  if (!payload || !payload.email) {
+    return res.status(401).json({ success: false, message: 'Customer session required.' });
+  }
+
+  const shop = await resolveShopBySlug(req.body?.shopSlug || req.query.shop || payload.shopId);
+  if (!shop) {
+    return res.status(404).json({ success: false, message: 'Shop not found.' });
+  }
+
+  const target = shop.stamps_target || shop.stampsTarget || 10;
+  const cleanId = String(payload.email).trim().toLowerCase();
+  const db = loadLocalDb();
+  let card = null;
+
+  if (supabase && shop.id) {
+    try {
+      const { data } = await supabase
+        .from('customer_cards')
+        .select('*')
+        .eq('shop_id', shop.id)
+        .or(`email.eq.${cleanId},phone.eq.${cleanId}`)
+        .maybeSingle();
+      card = data;
+    } catch { }
+  }
+  if (!card) {
+    card = db.customerCards[`${shop.slug}_${cleanId}`] || null;
+  }
+
+  if (!card || (card.stamps || 0) < target) {
+    return res.status(400).json({ success: false, message: 'Complete all stamps first to generate a reward code.' });
+  }
+
+  const claim = await createOrGetPendingRewardClaim({
+    shop,
+    cardId: card.id,
+    customerIdentifier: cleanId,
+    customerName: card.name
+  });
+
+  return res.json({
+    success: true,
+    redeemCode: claim.code,
+    redeemExpiresAt: claim.expires_at || claim.expiresAt
+  });
+});
+
 // Public shop metadata endpoint
 app.get('/api/shop/:slug/info', async (req, res) => {
   try {
@@ -3747,6 +4224,7 @@ app.get('/api/shop/:slug/info', async (req, res) => {
     const localShop = db?.shops?.[slug] || {};
     const googleReviewUrl = shop.google_review_url || shop.googleReviewUrl || localShop.googleReviewUrl || '';
     const instagramUrl = shop.instagram_url || shop.instagramUrl || localShop.instagramUrl || '';
+    const whatsappNumber = shop.whatsapp_number || shop.whatsappNumber || localShop.whatsappNumber || '';
     const logoUrl = shop.logo_url || shop.logoUrl || localShop.logoUrl || '';
 
     return res.json({
@@ -3759,6 +4237,7 @@ app.get('/api/shop/:slug/info', async (req, res) => {
         cooldownHours: shop.cooldown_hours || shop.cooldownHours || 12,
         googleReviewUrl,
         instagramUrl,
+        whatsappNumber,
         logoUrl
       }
     });
@@ -4161,6 +4640,15 @@ app.post('/api/claim-stamp', async (req, res) => {
 
         const card = rpcResult.card;
         const rewardUnlocked = rpcResult.reward_unlocked;
+        let pendingClaim = null;
+        if (rewardUnlocked) {
+          pendingClaim = await createOrGetPendingRewardClaim({
+            shop,
+            cardId: card.id,
+            customerIdentifier,
+            customerName: card.name || customerName
+          });
+        }
 
         // Mirror to local persistent cache
         try {
@@ -4183,7 +4671,7 @@ app.post('/api/claim-stamp', async (req, res) => {
             shopId: shop.id,
             phone: customerIdentifier,
             customerName: card.name || customerName || `Customer ${customerIdentifier.slice(-4)}`,
-            actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+            actionType: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
             stampsAtPoint: card.stamps,
             timestamp: now
           });
@@ -4192,8 +4680,13 @@ app.post('/api/claim-stamp', async (req, res) => {
 
         return res.json({
           success: true,
-          message: rewardUnlocked ? `🎉 Stamp target reached! You unlocked: ${shop.reward_description || '1 Free Item'}!` : `✓ Stamp added at ${shop.name}!`,
+          message: rewardUnlocked
+            ? `🎉 Stamp target reached! Show 6-digit code ${pendingClaim.code} to the shop owner to claim: ${shop.reward_description || '1 Free Item'}!`
+            : `✓ Stamp added at ${shop.name}!`,
           rewardUnlocked,
+          rewardPending: rewardUnlocked,
+          redeemCode: pendingClaim ? pendingClaim.code : null,
+          redeemExpiresAt: pendingClaim ? (pendingClaim.expires_at || pendingClaim.expiresAt) : null,
           shopName: shop.name,
           verificationToken: sessionToken,
           card: {
@@ -4201,7 +4694,8 @@ app.post('/api/claim-stamp', async (req, res) => {
             name: card.name,
             stamps: card.stamps,
             completedCards: card.completed_cards,
-            lastStampAt: card.last_stamp_at
+            lastStampAt: card.last_stamp_at,
+            pendingRedeemCode: pendingClaim ? pendingClaim.code : null
           },
           cooldownEnd: now + cooldownMs
         });
@@ -4274,15 +4768,49 @@ app.post('/api/claim-stamp', async (req, res) => {
         }
       }
 
-      // Award Stamp
-      let newStamps = card.stamps + 1;
+      // Award Stamp (hold at target until owner confirms 6-digit code)
+      const targetStamps = shop.stamps_target || 10;
+      let newStamps = Math.min(card.stamps + 1, targetStamps);
       let newCompleted = card.completed_cards;
       let rewardUnlocked = false;
+      let pendingClaim = null;
 
-      if (newStamps >= (shop.stamps_target || 10)) {
-        newCompleted += 1;
-        newStamps = 0;
+      if (card.stamps >= targetStamps) {
+        pendingClaim = await createOrGetPendingRewardClaim({
+          shop,
+          cardId: card.id,
+          customerIdentifier: verifiedPhone,
+          customerName: card.name
+        });
+        return res.json({
+          success: true,
+          message: `Reward ready! Show 6-digit code ${pendingClaim.code} to the shop owner to claim: ${shop.reward_description || '1 Free Item'}.`,
+          rewardUnlocked: true,
+          rewardPending: true,
+          redeemCode: pendingClaim.code,
+          redeemExpiresAt: pendingClaim.expires_at || pendingClaim.expiresAt,
+          shopName: shop.name,
+          verificationToken: sessionToken,
+          card: {
+            phone: card.phone,
+            name: card.name,
+            stamps: card.stamps,
+            completedCards: card.completed_cards,
+            lastStampAt: card.last_stamp_at,
+            pendingRedeemCode: pendingClaim.code
+          },
+          cooldownEnd: now + cooldownMs
+        });
+      }
+
+      if (newStamps >= targetStamps) {
         rewardUnlocked = true;
+        pendingClaim = await createOrGetPendingRewardClaim({
+          shop,
+          cardId: card.id,
+          customerIdentifier: verifiedPhone,
+          customerName: card.name
+        });
       }
 
       // Update card in Supabase
@@ -4307,7 +4835,7 @@ app.post('/api/claim-stamp', async (req, res) => {
         card_id: card.id,
         phone: verifiedPhone,
         customer_name: updatedCard.name,
-        action_type: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+        action_type: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
         stamps_at_point: newStamps
       });
 
@@ -4330,7 +4858,7 @@ app.post('/api/claim-stamp', async (req, res) => {
           shopId: shop.id,
           phone: verifiedPhone,
           customerName: updatedCard.name,
-          actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+          actionType: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
           stampsAtPoint: newStamps,
           timestamp: now
         });
@@ -4339,8 +4867,13 @@ app.post('/api/claim-stamp', async (req, res) => {
 
       return res.json({
         success: true,
-        message: rewardUnlocked ? `🎉 10th Stamp Reached! You unlocked: ${shop.reward_description || '1 Free Item'}!` : `✓ Stamp added at ${shop.name}!`,
+        message: rewardUnlocked
+          ? `🎉 Stamp target reached! Show 6-digit code ${pendingClaim.code} to the shop owner to claim: ${shop.reward_description || '1 Free Item'}!`
+          : `✓ Stamp added at ${shop.name}!`,
         rewardUnlocked,
+        rewardPending: rewardUnlocked,
+        redeemCode: pendingClaim ? pendingClaim.code : null,
+        redeemExpiresAt: pendingClaim ? (pendingClaim.expires_at || pendingClaim.expiresAt) : null,
         shopName: shop.name,
         verificationToken: sessionToken,
         card: {
@@ -4348,7 +4881,8 @@ app.post('/api/claim-stamp', async (req, res) => {
           name: updatedCard.name,
           stamps: updatedCard.stamps,
           completedCards: updatedCard.completed_cards,
-          lastStampAt: updatedCard.last_stamp_at
+          lastStampAt: updatedCard.last_stamp_at,
+          pendingRedeemCode: pendingClaim ? pendingClaim.code : null
         },
         cooldownEnd: now + cooldownMs
       });
@@ -4405,12 +4939,40 @@ app.post('/api/claim-stamp', async (req, res) => {
     });
   }
 
-  card.stamps += 1;
+  const localTarget = shop.stampsTarget || 10;
   let rewardUnlocked = false;
-  if (card.stamps >= (shop.stampsTarget || 10)) {
-    card.completedCards += 1;
-    card.stamps = 0;
+  let pendingClaim = null;
+
+  if (card.stamps >= localTarget) {
+    pendingClaim = await createOrGetPendingRewardClaim({
+      shop,
+      cardId: card.id,
+      customerIdentifier: verifiedPhone,
+      customerName: card.name
+    });
+    return res.json({
+      success: true,
+      message: `Reward ready! Show 6-digit code ${pendingClaim.code} to the shop owner to claim: ${shop.rewardDescription}!`,
+      rewardUnlocked: true,
+      rewardPending: true,
+      redeemCode: pendingClaim.code,
+      redeemExpiresAt: pendingClaim.expiresAt,
+      shopName: shop.name,
+      verificationToken: sessionToken,
+      card: { ...card, pendingRedeemCode: pendingClaim.code },
+      cooldownEnd: now + cooldownMs
+    });
+  }
+
+  card.stamps = Math.min(card.stamps + 1, localTarget);
+  if (card.stamps >= localTarget) {
     rewardUnlocked = true;
+    pendingClaim = await createOrGetPendingRewardClaim({
+      shop,
+      cardId: card.id,
+      customerIdentifier: verifiedPhone,
+      customerName: card.name
+    });
   }
 
   card.usedTokens.push(token);
@@ -4421,7 +4983,7 @@ app.post('/api/claim-stamp', async (req, res) => {
     shopSlug: slug,
     phone: verifiedPhone,
     customerName: card.name,
-    actionType: rewardUnlocked ? 'REWARD_REDEEMED' : 'STAMP_ADDED',
+    actionType: rewardUnlocked ? 'REWARD_PENDING' : 'STAMP_ADDED',
     stampsAtPoint: card.stamps,
     timestamp: now
   });
@@ -4430,11 +4992,16 @@ app.post('/api/claim-stamp', async (req, res) => {
 
   return res.json({
     success: true,
-    message: rewardUnlocked ? `🎉 10th Stamp Reached! You unlocked: ${shop.rewardDescription}!` : `✓ Stamp added at ${shop.name}!`,
+    message: rewardUnlocked
+      ? `🎉 Stamp target reached! Show 6-digit code ${pendingClaim.code} to the shop owner to claim: ${shop.rewardDescription}!`
+      : `✓ Stamp added at ${shop.name}!`,
     rewardUnlocked,
+    rewardPending: rewardUnlocked,
+    redeemCode: pendingClaim ? pendingClaim.code : null,
+    redeemExpiresAt: pendingClaim ? pendingClaim.expiresAt : null,
     shopName: shop.name,
     verificationToken: sessionToken,
-    card,
+    card: { ...card, pendingRedeemCode: pendingClaim ? pendingClaim.code : null },
     cooldownEnd: now + cooldownMs
   });
 });
@@ -4495,7 +5062,18 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
   const localShop = db.shops[slug] || {};
   const googleReviewUrl = shop?.google_review_url || shop?.googleReviewUrl || localShop.googleReviewUrl || '';
   const instagramUrl = shop?.instagram_url || shop?.instagramUrl || localShop.instagramUrl || '';
+  const whatsappNumber = shop?.whatsapp_number || shop?.whatsappNumber || localShop.whatsappNumber || '';
   const logoUrl = shop?.logo_url || shop?.logoUrl || localShop.logoUrl || '';
+
+  let pendingClaim = await getPendingRewardClaim(shop, cleanId);
+  if (!pendingClaim && stamps >= stampsTarget) {
+    pendingClaim = await createOrGetPendingRewardClaim({
+      shop,
+      cardId: card?.id || null,
+      customerIdentifier: cleanId,
+      customerName: card?.name || 'Rewards Member'
+    });
+  }
 
   return res.json({
     success: true,
@@ -4507,6 +5085,7 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
       cooldownHours,
       googleReviewUrl,
       instagramUrl,
+      whatsappNumber,
       logoUrl
     },
     card: {
@@ -4517,7 +5096,9 @@ app.get('/api/customer/:shopSlug/:identifier', async (req, res) => {
       completedCards,
       lastStampAt: lastStampMs,
       remainingCooldownMs: remainingCooldown,
-      isCooldownActive: remainingCooldown > 0
+      isCooldownActive: remainingCooldown > 0,
+      pendingRedeemCode: pendingClaim ? pendingClaim.code : null,
+      redeemExpiresAt: pendingClaim ? (pendingClaim.expires_at || pendingClaim.expiresAt) : null
     }
   });
 });
@@ -4609,5 +5190,11 @@ module.exports = {
   resolveShopBySlug,
   verifySupabaseToken,
   normalizePhoneNumber,
-  matchPhone
+  matchPhone,
+  normalizeWhatsAppNumber,
+  buildWhatsAppUrl,
+  generateRedeemCode,
+  createOrGetPendingRewardClaim,
+  getPendingRewardClaim,
+  listPendingRewardClaims
 };

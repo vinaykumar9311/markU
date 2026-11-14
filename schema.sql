@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS public.shops (
     secret_key TEXT NOT NULL, -- Dedicated HMAC secret key per shop for counter QRs
     google_review_url TEXT DEFAULT '',
     instagram_url TEXT DEFAULT '',
+    whatsapp_number TEXT DEFAULT '',
     logo_url TEXT DEFAULT '',
     subscription_plan TEXT DEFAULT 'trial',
     subscription_status TEXT DEFAULT 'active',

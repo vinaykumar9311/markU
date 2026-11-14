@@ -131,6 +131,29 @@
         <div id="stamps" class="grid grid-cols-5 gap-2.5 text-center"></div>
       </div>
 
+      <!-- 6-Digit Reward Completion Verification Code -->
+      <div id="redeemCodeBox" class="hidden rounded-2xl border border-[#e5a83b]/60 bg-gradient-to-br from-[#231b0e] to-[#14110b] p-4 text-center space-y-2 shadow-lg">
+        <div class="text-[10px] uppercase tracking-widest text-[#e5a83b] font-extrabold">Reward Ready · Owner Verification</div>
+        <div id="redeemCodeValue" class="font-mono text-3xl font-black tracking-[0.28em] text-white select-all">000000</div>
+        <p id="redeemCodeHint" class="text-[11px] text-amber-200/80">Show this 6-digit code to the shop owner to confirm your free reward.</p>
+        <a id="redeemCodeWhatsappBtn" href="#" target="_blank" rel="noopener noreferrer"
+          class="hidden w-full items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all">
+          <span>Send Code to Owner on WhatsApp &rarr;</span>
+        </a>
+      </div>
+
+      <!-- First-Time Registration WhatsApp Prompt -->
+      <div id="whatsappWelcomeBanner" class="hidden rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-3.5 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-xs font-bold text-emerald-200">Loyalty Card Started!</div>
+          <div class="text-[11px] text-emerald-300/80 truncate">Let the shop owner know on WhatsApp</div>
+        </div>
+        <a id="whatsappWelcomeBtn" href="#" target="_blank" rel="noopener noreferrer"
+          class="shrink-0 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs transition-all">
+          Send Msg &rarr;
+        </a>
+      </div>
+
       <!-- Golden Scanner Button -->
       <button type="button" onclick="openQrScanner()"
         class="w-full flex items-center justify-center gap-2 btn-gold font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm shadow-lg">
@@ -151,6 +174,10 @@
 
       <!-- Social & Review Call-to-Actions -->
       <div id="socialLinksBox" class="hidden pt-3 border-t border-white/10 space-y-2">
+        <a id="cardWhatsappBtn" href="#" target="_blank" rel="noopener noreferrer"
+          class="hidden w-full items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#0f2419] hover:bg-[#143022] border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all shadow-xs">
+          <span>💬 WhatsApp Direct Message</span>
+        </a>
         <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <a id="cardGoogleReviewBtn" href="#" target="_blank" rel="noopener noreferrer"
             class="hidden items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#1c1810] hover:bg-[#272013] border border-[#d99b3b]/40 text-[#f5b041] font-bold text-xs transition-all shadow-xs">
@@ -405,7 +432,7 @@
           if (data.card.email) localStorage.setItem('loyalty_email', data.card.email);
 
           document.getElementById('authPromptBox').classList.add('hidden');
-          renderCard(data.card, data.shop);
+          renderCard(data.card, data.shop, { isNewCard: Boolean(data.isNewCard) });
           showNotice(`✓ Loaded pass for ${data.card.email}`, true);
         } else {
           showNotice(data.message || 'Could not verify account.', false);
@@ -441,7 +468,7 @@
       }
     }
 
-    function renderCard(card, shop) {
+    function renderCard(card, shop, opts = {}) {
       const target = shop?.stampsTarget || 10;
       document.getElementById('cardContainer').classList.remove('hidden');
       document.getElementById('cardShopName').textContent = shop?.name || 'Loyalty Card';
@@ -513,12 +540,71 @@
         countdownInterval = setInterval(update, 1000);
       }
 
+      // Handle 6-Digit Pending Reward Code & WhatsApp Direct Message
+      const waDigits = String(shop?.whatsappNumber || '').replace(/\D/g, '');
+      const custDisplay = card.name || savedName || card.email || 'Customer';
+      const rewardLabel = shop?.rewardDescription || '1 Free Item';
+      const shopName = shop?.name || 'Local Store';
+
+      const redeemBox = document.getElementById('redeemCodeBox');
+      const redeemVal = document.getElementById('redeemCodeValue');
+      const redeemHint = document.getElementById('redeemCodeHint');
+      const redeemWaBtn = document.getElementById('redeemCodeWhatsappBtn');
+      const pendingCode = card?.pendingRedeemCode || null;
+
+      if (redeemBox && redeemVal) {
+        if (pendingCode) {
+          redeemVal.textContent = pendingCode;
+          if (redeemHint) {
+            redeemHint.textContent = `Show this 6-digit code to ${shopName} owner to claim: ${rewardLabel}`;
+          }
+          if (waDigits && redeemWaBtn) {
+            const codeMsg = `Hi ${shopName}, I completed all ${target} stamps on my loyalty card (${custDisplay})! My 6-digit reward verification code is: ${pendingCode} (${rewardLabel}).`;
+            redeemWaBtn.href = `https://wa.me/${waDigits}?text=${encodeURIComponent(codeMsg)}`;
+            redeemWaBtn.classList.remove('hidden');
+            redeemWaBtn.classList.add('flex');
+          } else if (redeemWaBtn) {
+            redeemWaBtn.classList.add('hidden');
+            redeemWaBtn.classList.remove('flex');
+          }
+          redeemBox.classList.remove('hidden');
+        } else {
+          redeemBox.classList.add('hidden');
+        }
+      }
+
+      const waWelcomeBanner = document.getElementById('whatsappWelcomeBanner');
+      const waWelcomeBtn = document.getElementById('whatsappWelcomeBtn');
+      if (waWelcomeBanner && waWelcomeBtn) {
+        if (opts.isNewCard && waDigits) {
+          const startMsg = `Hi ${shopName}, I just started my MarkU loyalty stamp card (${custDisplay})!`;
+          waWelcomeBtn.href = `https://wa.me/${waDigits}?text=${encodeURIComponent(startMsg)}`;
+          waWelcomeBanner.classList.remove('hidden');
+        } else {
+          waWelcomeBanner.classList.add('hidden');
+        }
+      }
+
+      const cardWaBtn = document.getElementById('cardWhatsappBtn');
+      if (cardWaBtn) {
+        if (waDigits) {
+          const msg = pendingCode
+            ? `Hi ${shopName}, I completed my loyalty card (${custDisplay})! My 6-digit code is ${pendingCode}.`
+            : `Hi ${shopName}, I started my MarkU loyalty stamp card (${custDisplay} · ${card.stamps}/${target} stamps).`;
+          cardWaBtn.href = `https://wa.me/${waDigits}?text=${encodeURIComponent(msg)}`;
+          cardWaBtn.classList.remove('hidden');
+          cardWaBtn.classList.add('flex');
+        } else {
+          cardWaBtn.classList.add('hidden');
+          cardWaBtn.classList.remove('flex');
+        }
+      }
+
       // Handle Google Review and Instagram Link Visibility
       const googleBtn = document.getElementById('cardGoogleReviewBtn');
       const instaBtn = document.getElementById('cardInstagramBtn');
       const socialBox = document.getElementById('socialLinksBox');
 
-      const shopName = shop?.name || 'Local Store';
       const cleanSlug = shop?.slug || shopSlug;
 
       let googleUrl = (shop?.googleReviewUrl && shop.googleReviewUrl.trim()) 

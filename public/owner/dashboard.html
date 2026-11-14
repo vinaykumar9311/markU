@@ -502,6 +502,34 @@
               </button>
             </div>
 
+            <!-- 6-Digit Reward Verification Card -->
+            <div id="redeemVerifyCard" class="bg-white border border-amber-200/90 rounded-2xl p-5 card-shadow space-y-3.5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-8 h-8 rounded-xl bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center text-sm font-bold">🔑</span>
+                  <div>
+                    <h4 class="font-bold text-xs text-gray-900">Verify 6-Digit Reward Code</h4>
+                    <p class="text-[11px] text-gray-400">Confirm customer's completed card</p>
+                  </div>
+                </div>
+                <span id="pendingRewardsBadge" class="hidden px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">0 pending</span>
+              </div>
+
+              <form onsubmit="handleVerifyRedeemCode(event)" class="flex gap-2">
+                <input type="text" id="redeemCodeInput" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required
+                  placeholder="Enter 6-digit code"
+                  class="flex-1 min-w-0 bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2.5 text-sm font-mono font-bold tracking-widest text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                <button type="submit" id="verifyRedeemBtn"
+                  class="btn-gold px-4 py-2.5 rounded-xl text-xs font-bold shrink-0 shadow-sm">
+                  Verify
+                </button>
+              </form>
+
+              <div id="redeemVerifyResult" class="hidden rounded-xl p-2.5 text-xs font-semibold"></div>
+
+              <div id="pendingRewardsList" class="hidden space-y-1.5 pt-2 border-t border-gray-100"></div>
+            </div>
+
           </div>
 
         </div>
@@ -739,6 +767,16 @@
               <input type="text" id="viewReviewsInstagram"
                 placeholder="https://instagram.com/yourshop or @yourshop"
                 class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs sm:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="viewReviewsWhatsapp" class="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Owner WhatsApp Number (with Country Code)
+              </label>
+              <input type="tel" id="viewReviewsWhatsapp"
+                placeholder="+91 98765 43210"
+                class="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-xs sm:text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <p class="text-[11px] text-gray-400">Customers get a direct "Message Shop on WhatsApp" button on their loyalty pass.</p>
             </div>
 
             <div class="flex items-center gap-3 pt-1">
@@ -1241,6 +1279,7 @@
         const cooldownHours = (currentShop.cooldownHours !== undefined && currentShop.cooldownHours !== null) ? currentShop.cooldownHours : 7;
         const googleReview = currentShop.googleReviewUrl || '';
         const instagram = currentShop.instagramUrl || '';
+        const whatsappNum = currentShop.whatsappNumber || '';
 
         if (!isUserEditingSettings) {
           if (document.getElementById('settingReward')) document.getElementById('settingReward').value = rewardDesc;
@@ -1248,6 +1287,7 @@
           if (document.getElementById('settingCooldown')) document.getElementById('settingCooldown').value = cooldownHours;
           if (document.getElementById('viewReviewsGoogle')) document.getElementById('viewReviewsGoogle').value = googleReview;
           if (document.getElementById('viewReviewsInstagram')) document.getElementById('viewReviewsInstagram').value = instagram;
+          if (document.getElementById('viewReviewsWhatsapp')) document.getElementById('viewReviewsWhatsapp').value = whatsappNum;
         }
 
         // Update Logo & Avatars across Owner UI
@@ -1271,25 +1311,33 @@
 
         renderCustomerList(cachedCustomers, stampsTarget);
         renderGrowthChart(cachedCustomers, data.recentActivity);
+        renderPendingRewards(data.pendingRewards || []);
 
         // Recent Activity
         const actList = document.getElementById('activityList');
         if (actList) {
           if (data.recentActivity && data.recentActivity.length > 0) {
-            actList.innerHTML = data.recentActivity.map(a => `
+            actList.innerHTML = data.recentActivity.map(a => {
+              const act = a.action_type || a.actionType || '';
+              const isConfirmed = act === 'REWARD_REDEEMED' || act === 'REWARD_CONFIRMED';
+              const isPending = act === 'REWARD_PENDING';
+              const icon = isConfirmed ? '🎁' : (isPending ? '🔑' : '★');
+              const label = isConfirmed ? 'redeemed a reward' : (isPending ? 'unlocked a 6-digit reward code' : 'collected a stamp');
+              return `
               <div class="pt-2 flex items-center justify-between text-xs">
                 <div class="flex items-center gap-2.5">
                   <span class="w-8 h-8 rounded-full bg-[#fdf6e9] text-[#cb8926] flex items-center justify-center shrink-0">
-                    ${(a.action_type === 'REWARD_REDEEMED' || a.actionType === 'REWARD_REDEEMED') ? '🎁' : '★'}
+                    ${icon}
                   </span>
                   <div>
-                    <div class="font-bold text-gray-900">${escapeHtml(a.customer_name || a.customerName || a.phone)} ${(a.action_type === 'REWARD_REDEEMED' || a.actionType === 'REWARD_REDEEMED') ? 'redeemed a reward' : 'collected a stamp'}</div>
+                    <div class="font-bold text-gray-900">${escapeHtml(a.customer_name || a.customerName || a.phone)} ${label}</div>
                     <div class="text-[10px] text-gray-400 font-mono">${new Date(a.created_at || a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </div>
                 </div>
                 <span class="text-gray-300">&rsaquo;</span>
               </div>
-            `).join('');
+            `;
+            }).join('');
           } else {
             actList.innerHTML = '<div class="py-8 text-center text-xs text-gray-400">No activity recorded yet. Live stamps will show here.</div>';
           }
@@ -1713,7 +1761,8 @@
       e.preventDefault();
       const payload = {
         googleReviewUrl: document.getElementById('viewReviewsGoogle').value.trim(),
-        instagramUrl: document.getElementById('viewReviewsInstagram').value.trim()
+        instagramUrl: document.getElementById('viewReviewsInstagram').value.trim(),
+        whatsappNumber: document.getElementById('viewReviewsWhatsapp') ? document.getElementById('viewReviewsWhatsapp').value.trim() : ''
       };
       try {
         const queryParam = activeShopSlug ? `?shop=${encodeURIComponent(activeShopSlug)}` : '';
@@ -1731,9 +1780,92 @@
           if (badge) badge.classList.remove('hidden');
           setTimeout(() => badge?.classList.add('hidden'), 3000);
           isUserEditingSettings = false;
+          loadDashboard();
+        } else {
+          alert(data.message || 'Could not save settings.');
         }
       } catch (err) {
         console.error(err);
+      }
+    }
+
+    function renderPendingRewards(pendingRewards) {
+      const badge = document.getElementById('pendingRewardsBadge');
+      const listEl = document.getElementById('pendingRewardsList');
+      if (!badge || !listEl) return;
+      const items = Array.isArray(pendingRewards) ? pendingRewards : [];
+      if (items.length === 0) {
+        badge.classList.add('hidden');
+        listEl.classList.add('hidden');
+        listEl.innerHTML = '';
+        return;
+      }
+      badge.textContent = `${items.length} pending`;
+      badge.classList.remove('hidden');
+      listEl.classList.remove('hidden');
+      listEl.innerHTML = `<div class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Awaiting Verification</div>` +
+        items.slice(0, 4).map(item => `
+          <div class="flex items-center justify-between text-xs bg-amber-50/60 border border-amber-100 rounded-lg px-2.5 py-1.5">
+            <span class="font-semibold text-gray-800 truncate max-w-[140px]">${escapeHtml(item.customerName || item.customerIdentifier)}</span>
+            <button type="button" onclick="fillAndVerifyCode('${escapeHtml(item.code)}')"
+              class="font-mono font-bold text-[#cb8926] hover:underline">
+              Verify &rarr;
+            </button>
+          </div>
+        `).join('');
+    }
+
+    function fillAndVerifyCode(code) {
+      const input = document.getElementById('redeemCodeInput');
+      if (input) {
+        input.value = code;
+        input.focus();
+      }
+    }
+
+    async function handleVerifyRedeemCode(e) {
+      e.preventDefault();
+      const input = document.getElementById('redeemCodeInput');
+      const btn = document.getElementById('verifyRedeemBtn');
+      const resultBox = document.getElementById('redeemVerifyResult');
+      const code = (input?.value || '').trim();
+      if (!/^\d{6}$/.test(code)) {
+        resultBox.className = 'rounded-xl p-2.5 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700';
+        resultBox.textContent = 'Enter a valid 6-digit number.';
+        resultBox.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      try {
+        const res = await fetch('/api/owner/redeem/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ code, shopSlug: activeShopSlug })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          resultBox.className = 'rounded-xl p-2.5 text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-800';
+          resultBox.textContent = `✓ ${data.message}`;
+          resultBox.classList.remove('hidden');
+          input.value = '';
+          loadDashboard();
+        } else {
+          resultBox.className = 'rounded-xl p-2.5 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700';
+          resultBox.textContent = data.message || 'Invalid or expired code.';
+          resultBox.classList.remove('hidden');
+        }
+      } catch (err) {
+        resultBox.className = 'rounded-xl p-2.5 text-xs font-semibold bg-rose-50 border border-rose-200 text-rose-700';
+        resultBox.textContent = 'Network error verifying code.';
+        resultBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify';
       }
     }
 

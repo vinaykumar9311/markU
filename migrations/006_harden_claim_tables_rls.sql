@@ -32,3 +32,4 @@ CREATE POLICY "Owners can view own shop used tokens" ON public.used_tokens
       WHERE s.id = used_tokens.shop_id AND s.owner_id = (SELECT auth.uid())
     )
   );
+

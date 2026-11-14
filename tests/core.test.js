@@ -26,7 +26,12 @@ const {
   hashPassword,
   verifyPassword,
   normalizePhoneNumber,
-  matchPhone
+  matchPhone,
+  normalizeWhatsAppNumber,
+  buildWhatsAppUrl,
+  generateRedeemCode,
+  createOrGetPendingRewardClaim,
+  loadLocalDb
 } = require('../server');
 
 test('Dynamic QR token generation and HMAC anti-counterfeit verification', () => {
@@ -398,6 +403,117 @@ test('POST /api/owner/register and /api/owner/login reject fake or non-existent 
     assert.equal(unverifiedJson.token, undefined);
     assert.ok([202, 400, 429].includes(unverifiedGmailReg.status));
   } finally {
+    await new Promise((resolve) => srv.close(resolve));
+  }
+});
+
+test('WhatsApp normalization and safe URL builder', () => {
+  assert.equal(normalizeWhatsAppNumber('+91 98765 43210'), '919876543210');
+  assert.equal(normalizeWhatsAppNumber('9876543210'), '919876543210');
+  assert.equal(normalizeWhatsAppNumber(''), '');
+  assert.equal(normalizeWhatsAppNumber('12345'), null);
+
+  const url = buildWhatsAppUrl('+919876543210', 'Hi Shop, I started my card!');
+  assert.equal(url, 'https://wa.me/919876543210?text=Hi%20Shop%2C%20I%20started%20my%20card!');
+  assert.equal(buildWhatsAppUrl('invalid', 'Hello'), '');
+});
+
+test('6-digit reward code generation and single-use owner verification flow', async () => {
+  const code = generateRedeemCode();
+  assert.match(code, /^\d{6}$/, 'Redeem code must be exactly 6 digits');
+
+  const { app } = require('../server');
+  const db = loadLocalDb();
+  const ownerId = 'owner_wa_test_' + Date.now();
+  const shopSlug = 'wa-redeem-test-' + Date.now();
+  const custEmail = 'rewardcust@gmail.com';
+
+  db.owners['owner_wa@gmail.com'] = { id: ownerId, email: 'owner_wa@gmail.com', shopSlug };
+  db.shops[shopSlug] = {
+    id: 'shop_wa_' + Date.now(),
+    ownerId,
+    name: 'Test Mocha',
+    slug: shopSlug,
+    stampsTarget: 2,
+    rewardDescription: '1 Free Coffee',
+    cooldownHours: 0,
+    whatsappNumber: '919876543210',
+    secretKey: 'test_secret'
+  };
+  db.customerCards[`${shopSlug}_${custEmail}`] = {
+    id: 'card_wa_1',
+    shopSlug,
+    shopId: db.shops[shopSlug].id,
+    email: custEmail,
+    phone: custEmail,
+    name: 'Test Customer',
+    stamps: 2,
+    completedCards: 0,
+    completed_cards: 0
+  };
+
+  const claim = await createOrGetPendingRewardClaim({
+    shop: db.shops[shopSlug],
+    cardId: 'card_wa_1',
+    customerIdentifier: custEmail,
+    customerName: 'Test Customer'
+  });
+  assert.match(claim.code, /^\d{6}$/);
+
+  const srv = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const baseUrl = `http://127.0.0.1:${srv.address().port}`;
+
+  try {
+    // Public shop info exposes whatsappNumber
+    const infoRes = await fetch(`${baseUrl}/api/shop/${shopSlug}/info`);
+    const infoJson = await infoRes.json();
+    assert.equal(infoRes.status, 200);
+    assert.equal(infoJson.shop.whatsappNumber, '919876543210');
+
+    // Customer JWT cannot verify owner reward code
+    const custToken = signUserAccessToken({ userId: 'cust_1', email: custEmail, role: 'customer' });
+    const unauthRes = await fetch(`${baseUrl}/api/owner/redeem/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${custToken}` },
+      body: JSON.stringify({ code: claim.code, shopSlug })
+    });
+    assert.equal(unauthRes.status, 401);
+
+    // Wrong 6-digit code fails
+    const ownerToken = signUserAccessToken({ userId: ownerId, email: 'owner_wa@gmail.com', role: 'owner' });
+    const wrongCode = claim.code === '123456' ? '654321' : '123456';
+    const wrongRes = await fetch(`${baseUrl}/api/owner/redeem/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerToken}` },
+      body: JSON.stringify({ code: wrongCode, shopSlug })
+    });
+    assert.equal(wrongRes.status, 400);
+
+    // Valid 6-digit code succeeds once, resets stamps to 0, increments completedCards
+    const okRes = await fetch(`${baseUrl}/api/owner/redeem/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerToken}` },
+      body: JSON.stringify({ code: claim.code, shopSlug })
+    });
+    const okJson = await okRes.json();
+    assert.equal(okRes.status, 200);
+    assert.equal(okJson.success, true);
+    assert.equal(db.customerCards[`${shopSlug}_${custEmail}`].stamps, 0);
+    assert.equal(db.customerCards[`${shopSlug}_${custEmail}`].completedCards, 1);
+
+    // Replay of the same 6-digit code is rejected
+    const replayRes = await fetch(`${baseUrl}/api/owner/redeem/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerToken}` },
+      body: JSON.stringify({ code: claim.code, shopSlug })
+    });
+    assert.equal(replayRes.status, 400);
+  } finally {
+    delete db.shops[shopSlug];
+    delete db.owners['owner_wa@gmail.com'];
+    delete db.customerCards[`${shopSlug}_${custEmail}`];
     await new Promise((resolve) => srv.close(resolve));
   }
 });

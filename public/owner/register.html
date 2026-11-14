@@ -164,19 +164,29 @@
         </div>
       </div>
 
-      <!-- Cooldown Hours -->
-      <div>
-        <label for="cooldownHours" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
-          Anti-Spam Stamp Cooldown
-        </label>
-        <select id="cooldownHours"
-          class="w-full bg-[#0a0b0e] border border-white/10 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium cursor-pointer">
-          <option value="1" style="background:#0a0b0e">1 Hour (Testing & High Traffic)</option>
-          <option value="4" style="background:#0a0b0e">4 Hours (Quick Repeat)</option>
-          <option value="7" selected style="background:#0a0b0e">7 Hours (Recommended)</option>
-          <option value="12" style="background:#0a0b0e">12 Hours (Twice Daily Max)</option>
-          <option value="24" style="background:#0a0b0e">24 Hours (Once Per Day)</option>
-        </select>
+      <!-- Cooldown Hours & Owner WhatsApp -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="cooldownHours" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+            Anti-Spam Stamp Cooldown
+          </label>
+          <select id="cooldownHours"
+            class="w-full bg-[#0a0b0e] border border-white/10 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium cursor-pointer">
+            <option value="1" style="background:#0a0b0e">1 Hour (Testing & High Traffic)</option>
+            <option value="4" style="background:#0a0b0e">4 Hours (Quick Repeat)</option>
+            <option value="7" selected style="background:#0a0b0e">7 Hours (Recommended)</option>
+            <option value="12" style="background:#0a0b0e">12 Hours (Twice Daily Max)</option>
+            <option value="24" style="background:#0a0b0e">24 Hours (Once Per Day)</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="whatsappNumber" class="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+            Owner WhatsApp Number <span class="text-slate-500 font-normal">(Optional)</span>
+          </label>
+          <input type="tel" id="whatsappNumber" placeholder="e.g. +91 98765 43210"
+            class="w-full bg-[#0a0b0e] border border-white/10 focus:border-amber-500 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all font-mono">
+        </div>
       </div>
 
       <!-- Enroll With Google or Apple Only -->
@@ -318,7 +328,8 @@
       const rewardDescription = document.getElementById('rewardDescription').value.trim() || saved.rewardDescription || '1 Free Item';
       const stampsTarget = parseInt(document.getElementById('stampsTarget').value) || saved.stampsTarget || 10;
       const cooldownHours = parseFloat(document.getElementById('cooldownHours').value) || saved.cooldownHours || 12;
-      return { shopName, slug, rewardDescription, stampsTarget, cooldownHours };
+      const whatsappNumber = (document.getElementById('whatsappNumber')?.value || '').trim() || saved.whatsappNumber || '';
+      return { shopName, slug, rewardDescription, stampsTarget, cooldownHours, whatsappNumber };
     }
 
     async function submitGoogleRegistration(authPayload) {

@@ -168,6 +168,13 @@
         <div id="stampsGrid" class="grid grid-cols-5 gap-2.5 justify-center py-1"></div>
       </div>
 
+      <!-- 6-Digit Reward Completion Verification Code -->
+      <div id="scanRedeemCodeBox" class="hidden rounded-2xl border border-[#e5a83b]/60 bg-gradient-to-br from-[#231b0e] to-[#14110b] p-4 text-center space-y-1.5 shadow-lg">
+        <div class="text-[10px] uppercase tracking-widest text-[#e5a83b] font-extrabold">Reward Ready · Owner Verification</div>
+        <div id="scanRedeemCodeValue" class="font-mono text-3xl font-black tracking-[0.28em] text-white select-all">000000</div>
+        <p class="text-[11px] text-amber-200/80">Show this 6-digit code to the shop owner to claim your free reward.</p>
+      </div>
+
       <!-- Cooldown or Ready Status Box -->
       <div id="cooldownBox" class="rounded-xl border border-white/10 bg-white/5 p-3 text-center">
         <div class="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Counter Status</div>
@@ -176,6 +183,10 @@
 
       <!-- Actions -->
       <div class="space-y-2.5 pt-1">
+        <a id="scanWhatsappBtn" href="#" target="_blank" rel="noopener noreferrer"
+          class="hidden w-full items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0f2419] hover:bg-[#143022] border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all">
+          <span>💬 Message Shop on WhatsApp</span>
+        </a>
         <a id="viewFullPassBtn" href="/card.html"
           class="block w-full btn-gold font-bold py-3.5 rounded-xl text-xs sm:text-sm text-center shadow-lg">
           Open Saved Loyalty Pass &rarr;
@@ -547,6 +558,37 @@
       document.getElementById('cardRewardSubText').textContent = `Collect ${target} stamps, get ${reward}!`;
       document.getElementById('liveStampPill').textContent = `${currentStamps} / ${target} Stamps`;
       document.getElementById('memberEmailText').textContent = (card && card.email) || 'Active Customer';
+
+      // Show 6-digit reward verification code if target reached
+      const scanCodeBox = document.getElementById('scanRedeemCodeBox');
+      const scanCodeVal = document.getElementById('scanRedeemCodeValue');
+      const pendingCode = card && card.pendingRedeemCode ? card.pendingRedeemCode : null;
+      if (scanCodeBox && scanCodeVal) {
+        if (pendingCode) {
+          scanCodeVal.textContent = pendingCode;
+          scanCodeBox.classList.remove('hidden');
+        } else {
+          scanCodeBox.classList.add('hidden');
+        }
+      }
+
+      // Show WhatsApp Direct Message button if owner configured WhatsApp
+      const scanWaBtn = document.getElementById('scanWhatsappBtn');
+      const waDigits = String((shop && shop.whatsappNumber) || (currentShopData && currentShopData.whatsappNumber) || '').replace(/\D/g, '');
+      if (scanWaBtn) {
+        if (waDigits) {
+          const custLabel = (card && (card.name || card.email)) || 'Customer';
+          const waMsg = pendingCode
+            ? `Hi ${shopName}, I completed all ${target} stamps (${custLabel})! My 6-digit reward code is: ${pendingCode} (${reward}).`
+            : `Hi ${shopName}, I just started/stamped my MarkU loyalty card (${custLabel} · ${currentStamps}/${target} stamps)!`;
+          scanWaBtn.href = `https://wa.me/${waDigits}?text=${encodeURIComponent(waMsg)}`;
+          scanWaBtn.classList.remove('hidden');
+          scanWaBtn.classList.add('flex');
+        } else {
+          scanWaBtn.classList.add('hidden');
+          scanWaBtn.classList.remove('flex');
+        }
+      }
 
       // Render Grid of Stamps matching card.html design exactly
       const grid = document.getElementById('stampsGrid');
