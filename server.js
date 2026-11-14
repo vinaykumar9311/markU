@@ -131,7 +131,7 @@ const DEFAULT_GOOGLE_CLIENT_ID = '365629360703-pkonrtr6snvne6rpsko2getseg0t5fog.
 let supabase = null;
 const sbUrl = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
 const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
-if (sbUrl && sbKey) {
+if (sbUrl && sbKey && process.env.DISABLE_SUPABASE_FOR_TEST !== '1') {
   try {
     supabase = createClient(sbUrl, sbKey, {
       auth: { autoRefreshToken: false, persistSession: false }
@@ -933,8 +933,9 @@ async function verifyGoogleToken(idToken) {
 // A. SHOP OWNER GOOGLE AUTH HANDLER (/api/auth/google/owner)
 // --------------------------------------------------------------------
 app.post('/api/auth/google/owner', async (req, res) => {
-  const { credential, id_token, token, supabaseToken, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, whatsappNumber, deviceFingerprint } = req.body;
+  const { credential, id_token, token, supabaseToken, name: manualName, shopName, slug, rewardDescription, stampsTarget, cooldownHours, whatsappNumber, deviceFingerprint, mode } = req.body;
   const authToken = credential || id_token || token || supabaseToken;
+  const isRegisterAttempt = mode === 'register';
 
   if (!authToken) {
     return res.status(401).json({ success: false, message: 'Missing Google OAuth token. Sign in through Google is required.' });
@@ -972,17 +973,31 @@ app.post('/api/auth/google/owner', async (req, res) => {
       if (existingUser) {
         user = existingUser;
       } else {
-        const { data: newUser } = await supabase.from('users').insert({
+        const { data: newUser, error: userInsertErr } = await supabase.from('users').insert({
           email: cleanEmail,
           name: ownerName,
           google_id: googleId,
           avatar_url: avatarUrl,
           role: 'owner'
         }).select().single();
-        user = newUser;
+
+        if (userInsertErr) {
+          const { data: retryUser } = await supabase
+            .from('users')
+            .select('*')
+            .or(`email.eq.${cleanEmail},google_id.eq.${googleId}`)
+            .maybeSingle();
+          if (retryUser) {
+            user = retryUser;
+          } else {
+            return res.status(500).json({ success: false, error: 'Failed to create owner account: ' + userInsertErr.message, message: 'Failed to create owner account: ' + userInsertErr.message });
+          }
+        } else {
+          user = newUser;
+        }
       }
     } catch (err) {
-      console.warn('[Supabase users error]:', err.message);
+      return res.status(500).json({ success: false, error: 'Database error while verifying owner account.', message: 'Database error while verifying owner account.' });
     }
   }
 
@@ -1004,26 +1019,33 @@ app.post('/api/auth/google/owner', async (req, res) => {
     }
   }
 
-  // 2. Check if shop workspace exists for this owner
+  // 2. Check if shop workspace exists for this owner (1 Google account = 1 shop)
   if (supabase) {
     try {
-      let { data: existingShop } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle();
-      if (!existingShop) {
-        const { data: oldOwner } = await supabase.from('owners').select('*').eq('email', cleanEmail).maybeSingle();
-        if (oldOwner) {
-          const { data: oldShop } = await supabase.from('shops').select('*').eq('owner_id', oldOwner.id).maybeSingle();
-          if (oldShop) existingShop = oldShop;
-        }
+      const { data: existingShop, error: shopLookupErr } = await supabase
+        .from('shops')
+        .select('*')
+        .eq('owner_id', user.id)
+        .maybeSingle();
+      if (shopLookupErr) {
+        return res.status(500).json({ success: false, error: 'Failed to verify existing shop.', message: 'Failed to verify existing shop.' });
       }
       if (existingShop) shop = existingShop;
     } catch (err) {
-      console.warn('[Supabase shops lookup error]:', err.message);
+      return res.status(500).json({ success: false, error: 'Database error while checking existing shop.', message: 'Database error while checking existing shop.' });
     }
-  }
-
-  if (!shop) {
+  } else {
     const found = Object.values(db.shops || {}).find(s => s.ownerId === user.id || (db.owners[cleanEmail] && s.slug === db.owners[cleanEmail].shopSlug));
     if (found) shop = found;
+  }
+
+  if (shop && isRegisterAttempt) {
+    return res.status(409).json({
+      success: false,
+      code: 'GOOGLE_ACCOUNT_ALREADY_REGISTERED',
+      error: 'An account with this Google ID is already registered. Please log in instead.',
+      message: 'An account with this Google ID is already registered. Please log in instead.'
+    });
   }
 
   // 3. If shop does NOT exist: Create a new tenant workspace (shop_id)
@@ -1035,7 +1057,7 @@ app.post('/api/auth/google/owner', async (req, res) => {
     if (!baseSlug) baseSlug = 'shop-' + crypto.randomBytes(3).toString('hex');
     let finalSlug = baseSlug;
 
-    if (db.shops && db.shops[finalSlug]) {
+    if (!supabase && db.shops && db.shops[finalSlug]) {
       finalSlug = `${baseSlug}-${crypto.randomBytes(2).toString('hex')}`;
     }
 
@@ -1063,15 +1085,37 @@ app.post('/api/auth/google/owner', async (req, res) => {
     };
 
     if (supabase) {
-      try {
-        const { data: createdShop } = await supabase.from('shops').insert(newShopData).select().single();
-        if (createdShop) shop = createdShop;
-      } catch (err) {
-        console.warn('[Supabase insert shop error]:', err.message);
+      const { data: createdShop, error: shopInsertErr } = await supabase.from('shops').insert(newShopData).select().single();
+      if (shopInsertErr) {
+        if (shopInsertErr.code === '23505') {
+          const msg = String(shopInsertErr.message || '');
+          if (msg.includes('owner_id')) {
+            if (isRegisterAttempt) {
+              return res.status(409).json({
+                success: false,
+                code: 'GOOGLE_ACCOUNT_ALREADY_REGISTERED',
+                error: 'An account with this Google ID is already registered. Please log in instead.',
+                message: 'An account with this Google ID is already registered. Please log in instead.'
+              });
+            }
+            const { data: existingShop } = await supabase.from('shops').select('*').eq('owner_id', user.id).maybeSingle();
+            if (existingShop) {
+              shop = existingShop;
+              isNewWorkspace = false;
+            }
+          } else if (msg.includes('slug')) {
+            return res.status(409).json({ success: false, error: `The shop URL slug "${finalSlug}" is already taken. Please choose another.`, message: `The shop URL slug "${finalSlug}" is already taken. Please choose another.` });
+          }
+        }
+        if (!shop) {
+          return res.status(400).json({ success: false, error: 'Failed to create shop: ' + shopInsertErr.message, message: 'Failed to create shop: ' + shopInsertErr.message });
+        }
+      } else {
+        shop = createdShop;
       }
+    } else {
+      shop = newShopData;
     }
-
-    if (!shop) shop = newShopData;
 
     db.shops[finalSlug] = {
       id: shop.id,
@@ -3628,6 +3672,10 @@ app.post('/api/owner/create-shop', async (req, res) => {
   const finalWhatsapp = cleanWhatsapp || '';
 
   const db = loadLocalDb();
+  const existingLocalShop = Object.values(db.shops || {}).find(s => s.ownerId === ownerId);
+  if (existingLocalShop) {
+    return res.status(409).json({ success: false, error: 'Only one shop is allowed per Google account.', message: 'Only one shop is allowed per Google account.' });
+  }
   if (db.shops[cleanSlug]) {
     return res.status(409).json({ success: false, message: `The shop URL slug "/shop/${cleanSlug}" is already taken.` });
   }
@@ -3636,6 +3684,10 @@ app.post('/api/owner/create-shop', async (req, res) => {
 
   if (supabase) {
     try {
+      const { data: existingOwnerShop } = await supabase.from('shops').select('id').eq('owner_id', ownerId).maybeSingle();
+      if (existingOwnerShop) {
+        return res.status(409).json({ success: false, error: 'Only one shop is allowed per Google account.', message: 'Only one shop is allowed per Google account.' });
+      }
       const { data: existing } = await supabase.from('shops').select('id').eq('slug', cleanSlug).maybeSingle();
       if (existing) {
         return res.status(409).json({ success: false, message: `The shop URL slug "/shop/${cleanSlug}" is already taken.` });

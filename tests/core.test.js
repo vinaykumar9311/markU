@@ -517,3 +517,74 @@ test('6-digit reward code generation and single-use owner verification flow', as
     await new Promise((resolve) => srv.close(resolve));
   }
 });
+
+test('Single Google account cannot register multiple shops or create-shop duplicates', async () => {
+  const { execFileSync } = require('child_process');
+  const script = `
+    const assert = require('node:assert/strict');
+    const { app, loadLocalDb } = require('./server');
+    (async () => {
+      const email = 'single_google_' + Date.now() + '@gmail.com';
+      const sub = 'sub_' + Date.now();
+      const slug1 = 'first-shop-' + Date.now();
+      const slug2 = 'second-shop-' + Date.now();
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ sub, email, email_verified: true, name: 'Single Owner' })).toString('base64url');
+      const fakeGoogleJwt = header + '.' + payload + '.sig';
+
+      const srv = await new Promise((resolve) => {
+        const s = app.listen(0, '127.0.0.1', () => resolve(s));
+      });
+      const baseUrl = 'http://127.0.0.1:' + srv.address().port;
+      const db = loadLocalDb();
+
+      try {
+        const firstRes = await fetch(baseUrl + '/api/auth/google/owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: fakeGoogleJwt, shopName: 'First Shop', slug: slug1, mode: 'register' })
+        });
+        const firstJson = await firstRes.json();
+        assert.equal(firstRes.status, 200);
+        assert.equal(firstJson.success, true);
+
+        const dupRes = await fetch(baseUrl + '/api/auth/google/owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: fakeGoogleJwt, shopName: 'Second Shop', slug: slug2, mode: 'register' })
+        });
+        const dupJson = await dupRes.json();
+        assert.equal(dupRes.status, 409);
+        assert.equal(dupJson.code, 'GOOGLE_ACCOUNT_ALREADY_REGISTERED');
+
+        const createRes = await fetch(baseUrl + '/api/owner/create-shop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + firstJson.token },
+          body: JSON.stringify({ name: 'Second Shop', slug: slug2 })
+        });
+        assert.equal(createRes.status, 409);
+
+        const loginRes = await fetch(baseUrl + '/api/auth/google/owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: fakeGoogleJwt })
+        });
+        const loginJson = await loginRes.json();
+        assert.equal(loginRes.status, 200);
+        assert.equal(loginJson.isNew, false);
+        assert.equal(loginJson.shop.slug, slug1);
+      } finally {
+        delete db.shops[slug1];
+        delete db.shops[slug2];
+        delete db.owners[email];
+        delete db.users[email];
+        await new Promise((resolve) => srv.close(resolve));
+      }
+    })().catch((err) => { console.error(err); process.exit(1); });
+  `;
+  execFileSync(process.execPath, ['-e', script], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, NODE_ENV: 'test', DISABLE_SUPABASE_FOR_TEST: '1' },
+    stdio: 'pipe'
+  });
+});

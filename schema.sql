@@ -38,7 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON public.sessions (user_id);
 -- 1. SHOPS TABLE (Each Registered Shop Owner has their own shop record)
 CREATE TABLE IF NOT EXISTS public.shops (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL, -- References users(id)
+    owner_id UUID UNIQUE NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     slug TEXT UNIQUE NOT NULL, -- e.g. 'royal-cafe', 'apex-barber'
     cooldown_hours NUMERIC DEFAULT 12 CHECK (cooldown_hours >= 0),

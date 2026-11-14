@@ -344,7 +344,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             ...authPayload,
-            ...shopPayload
+            ...shopPayload,
+            mode: 'register'
           })
         });
         const data = await res.json();
