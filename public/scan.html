@@ -183,6 +183,21 @@
 
       <!-- Actions -->
       <div class="space-y-2.5 pt-1">
+        <!-- Mobile-Only Install Card to Phone (iPhone & Android) -->
+        <div id="mobileInstallCardBox" class="hidden rounded-2xl border border-amber-500/35 bg-gradient-to-br from-[#1d1810] to-[#12110e] p-3.5 text-left space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider">Save Card to Your Phone</div>
+              <p id="mobileInstallSubtitle" class="text-[11px] text-gray-300 mt-0.5">Install this loyalty pass on your home screen for 1-tap access.</p>
+            </div>
+            <button type="button" id="mobileInstallBtn" onclick="handleMobileCardInstall()"
+              class="shrink-0 px-3.5 py-2 rounded-xl btn-gold text-[11px] font-extrabold shadow-md">
+              Install Card
+            </button>
+          </div>
+          <div id="mobileInstallGuide" class="hidden rounded-xl bg-black/40 border border-white/10 p-2.5 text-[11px] text-gray-200 leading-relaxed space-y-1"></div>
+        </div>
+
         <a id="scanWhatsappBtn" href="#" target="_blank" rel="noopener noreferrer"
           class="hidden w-full items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#0f2419] hover:bg-[#143022] border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all">
           <span>💬 Message Shop on WhatsApp</span>
@@ -290,6 +305,93 @@
     let supabaseClient = null;
     let currentShopData = null;
     let cooldownInterval = null;
+    let deferredInstallPrompt = null;
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      updateMobileInstallBanner();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      const box = document.getElementById('mobileInstallCardBox');
+      if (box) box.classList.add('hidden');
+    });
+
+    function getMobilePlatform() {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const isAndroid = /Android/i.test(ua);
+      return { isIOS, isAndroid, isMobilePhone: isIOS || isAndroid };
+    }
+
+    function isStandaloneApp() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function updateMobileInstallBanner() {
+      const box = document.getElementById('mobileInstallCardBox');
+      const liveBox = document.getElementById('liveCardBox');
+      if (!box || !liveBox || liveBox.classList.contains('hidden')) return;
+
+      const { isIOS, isAndroid, isMobilePhone } = getMobilePlatform();
+      if (!isMobilePhone || isStandaloneApp()) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      const btn = document.getElementById('mobileInstallBtn');
+      const subtitle = document.getElementById('mobileInstallSubtitle');
+      const guide = document.getElementById('mobileInstallGuide');
+
+      box.classList.remove('hidden');
+      if (isIOS) {
+        if (btn) btn.textContent = 'Add to iPhone';
+        if (subtitle) subtitle.textContent = 'Save this card to your iPhone Home Screen (no App Store needed).';
+        if (guide) {
+          guide.innerHTML = '<div>1. Tap the <strong>Share</strong> button <span class="font-mono text-amber-300">↑</span> in Safari.</div><div>2. Scroll down and tap <strong>Add to Home Screen</strong>.</div>';
+          guide.classList.remove('hidden');
+        }
+      } else if (isAndroid) {
+        if (btn) btn.textContent = 'Install Card';
+        if (subtitle) subtitle.textContent = 'Install this loyalty card on your Android Home Screen.';
+        if (guide && !deferredInstallPrompt) {
+          guide.innerHTML = '<div>Tap <strong>Install Card</strong> above, or open Chrome menu <strong>⋮</strong> &rarr; <strong>Add to Home screen</strong> / <strong>Install app</strong>.</div>';
+        }
+      }
+    }
+
+    async function handleMobileCardInstall() {
+      const { isIOS, isAndroid } = getMobilePlatform();
+      const guide = document.getElementById('mobileInstallGuide');
+
+      if (isAndroid && deferredInstallPrompt) {
+        try {
+          deferredInstallPrompt.prompt();
+          const choice = await deferredInstallPrompt.userChoice;
+          if (choice && choice.outcome === 'accepted') {
+            deferredInstallPrompt = null;
+            const box = document.getElementById('mobileInstallCardBox');
+            if (box) box.classList.add('hidden');
+            return;
+          }
+        } catch {}
+      }
+
+      if (guide) {
+        if (isIOS) {
+          guide.innerHTML = '<div>1. Tap the <strong>Share</strong> button <span class="font-mono text-amber-300">↑</span> in Safari.</div><div>2. Tap <strong>Add to Home Screen</strong> &rarr; <strong>Add</strong>.</div>';
+        } else {
+          guide.innerHTML = '<div>Open your browser menu (<strong>⋮</strong>) and tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</div>';
+        }
+        guide.classList.remove('hidden');
+      }
+    }
 
     // Fast Device Fingerprint Generator
     function getDeviceFingerprint() {
@@ -550,6 +652,7 @@
       document.getElementById('errorFallbackBox').classList.add('hidden');
       const liveBox = document.getElementById('liveCardBox');
       liveBox.classList.remove('hidden');
+      updateMobileInstallBanner();
 
       const target = (shop && (shop.stampsTarget || shop.stamps_target)) || 10;
       const currentStamps = (card && card.stamps) || 0;
